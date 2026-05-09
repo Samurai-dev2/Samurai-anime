@@ -23,8 +23,6 @@ interface Source {
 }
 
 // ─── Sources ─────────────────────────────────────────────────
-// Each source is honest about what it actually supports.
-// When dub is selected we only use sources that truly serve EN audio.
 function getSources(
   tmdbId: number,
   imdbId: string,
@@ -37,38 +35,33 @@ function getSources(
 
   if (movie) {
     return [
-      // ── SUB-only sources ──────────────────────────────────
-      {
-        label: "VidSrc.me",
-        url: imdbId
-          ? `https://vidsrc.me/embed/movie?imdb=${imdbId}&ds_lang=ja`
-          : `https://vidsrc.me/embed/movie?tmdb=${tmdbId}&ds_lang=ja`,
-        supportsSub: true,
-        supportsDub: false, // ds_lang=en doesn't actually force EN dub for anime
-      },
-      {
-        label: "VidSrc.cc",
-        url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`,
-        supportsSub: true,
-        supportsDub: false,
-      },
-
-      // ── SUB + DUB sources ─────────────────────────────────
       {
         label: "VidSrc.icu",
-        // type=1 → JP sub, type=2 → EN dub — this one actually works
         url: `https://vidsrc.icu/embed/movie/${tmdbId}?type=${isDub ? "2" : "1"}`,
         supportsSub: true,
         supportsDub: true,
       },
       {
         label: "VidLink",
-        // dubbing=1 reliably switches to EN dub for anime
         url: isDub
           ? `https://vidlink.pro/movie/${tmdbId}?dubbing=1`
           : `https://vidlink.pro/movie/${tmdbId}`,
         supportsSub: true,
         supportsDub: true,
+      },
+      {
+        label: "VidSrc.me",
+        url: imdbId
+          ? `https://vidsrc.me/embed/movie?imdb=${imdbId}&ds_lang=${isDub ? "en" : "ja"}`
+          : `https://vidsrc.me/embed/movie?tmdb=${tmdbId}&ds_lang=${isDub ? "en" : "ja"}`,
+        supportsSub: true,
+        supportsDub: false,
+      },
+      {
+        label: "VidSrc.cc",
+        url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`,
+        supportsSub: true,
+        supportsDub: false,
       },
       {
         label: "SuperEmbed",
@@ -80,12 +73,25 @@ function getSources(
   }
 
   return [
-    // ── SUB-only sources ──────────────────────────────────
+    {
+      label: "VidSrc.icu",
+      url: `https://vidsrc.icu/embed/tv/${tmdbId}/${season}/${episode}?type=${isDub ? "2" : "1"}`,
+      supportsSub: true,
+      supportsDub: true,
+    },
+    {
+      label: "VidLink",
+      url: isDub
+        ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?dubbing=1`
+        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
+      supportsSub: true,
+      supportsDub: true,
+    },
     {
       label: "VidSrc.me",
       url: imdbId
-        ? `https://vidsrc.me/embed/tv?imdb=${imdbId}&season=${season}&episode=${episode}&ds_lang=ja`
-        : `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&ds_lang=ja`,
+        ? `https://vidsrc.me/embed/tv?imdb=${imdbId}&season=${season}&episode=${episode}&ds_lang=${isDub ? "en" : "ja"}`
+        : `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&ds_lang=${isDub ? "en" : "ja"}`,
       supportsSub: true,
       supportsDub: false,
     },
@@ -94,24 +100,6 @@ function getSources(
       url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`,
       supportsSub: true,
       supportsDub: false,
-    },
-
-    // ── SUB + DUB sources ─────────────────────────────────
-    {
-      label: "VidSrc.icu",
-      // type=1 → JP sub guaranteed, type=2 → EN dub guaranteed
-      url: `https://vidsrc.icu/embed/tv/${tmdbId}/${season}/${episode}?type=${isDub ? "2" : "1"}`,
-      supportsSub: true,
-      supportsDub: true,
-    },
-    {
-      label: "VidLink",
-      // dubbing=1 switches audio to EN for anime specifically
-      url: isDub
-        ? `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}?dubbing=1`
-        : `https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`,
-      supportsSub: true,
-      supportsDub: true,
     },
     {
       label: "SuperEmbed",
@@ -295,22 +283,24 @@ export default function WatchPage() {
   const [episode,    setEpisode]    = useState(parseInt(searchParams.get("episode") || "1"));
   const [lang,       setLang]       = useState<Lang>((searchParams.get("lang") as Lang) || "sub");
   const [sourceIdx,  setSourceIdx]  = useState(0);
-  const [iframeKey,  setIframeKey]  = useState(0);
+  const [reloadCounter, setReloadCounter] = useState(0);
   const [showEpList, setShowEpList] = useState(true);
 
   const allSources = tmdbId
     ? getSources(tmdbId, imdbId, season, episode, movie, lang)
     : [];
 
-  // When dub is active only show sources that actually support dub
-  // When sub is active show all sources
+  // Filter sources based on current language
   const sources = lang === "dub"
     ? allSources.filter((s) => s.supportsDub)
     : allSources.filter((s) => s.supportsSub);
 
-  // Clamp sourceIdx so it never goes out of bounds when switching lang
-  const clampedIdx    = Math.min(sourceIdx, Math.max(0, sources.length - 1));
+  // Clamp sourceIdx to valid range
+  const clampedIdx = Math.min(sourceIdx, Math.max(0, sources.length - 1));
   const currentSource = sources[clampedIdx] ?? null;
+
+  // Create a robust iframe key that changes when any relevant parameter changes
+  const iframeKey = `${lang}-${season}-${episode}-${clampedIdx}-${reloadCounter}`;
 
   // Sync URL + save progress
   useEffect(() => {
@@ -321,36 +311,54 @@ export default function WatchPage() {
       { season: String(season), episode: String(episode), lang },
       { replace: true },
     );
-  }, [id, season, episode, lang]);
+  }, [id, season, episode, lang, setSearchParams]);
 
-  const reload = useCallback(() => setIframeKey((k) => k + 1), []);
+  const reload = useCallback(() => {
+    setReloadCounter((prev) => prev + 1);
+  }, []);
 
-  // Lang change → clamp index + force iframe remount
-  const handleLangChange = (l: Lang) => {
+  // Lang change → reset to first valid source + force reload
+  const handleLangChange = useCallback((l: Lang) => {
     setLang(l);
     setSourceIdx(0);
-    setIframeKey((k) => k + 1);
-  };
+    setReloadCounter((prev) => prev + 1);
+  }, []);
 
-  const handleSourceChange = (idx: number) => {
+  const handleSourceChange = useCallback((idx: number) => {
     setSourceIdx(idx);
-    setIframeKey((k) => k + 1);
-  };
+    setReloadCounter((prev) => prev + 1);
+  }, []);
 
-  const prevEp = () => {
-    if (episode > 1) setEpisode((e) => e - 1);
-    else if (season > 1) { setSeason((s) => s - 1); setEpisode(1); }
-    setIframeKey((k) => k + 1);
-  };
+  const prevEp = useCallback(() => {
+    if (episode > 1) {
+      setEpisode((e) => e - 1);
+    } else if (season > 1) {
+      setSeason((s) => s - 1);
+      setEpisode(1);
+    }
+    setReloadCounter((prev) => prev + 1);
+  }, [episode, season]);
 
-  const nextEp = () => {
-    if (episode < totalEpisodes) setEpisode((e) => e + 1);
-    else if (season < totalSeasons) { setSeason((s) => s + 1); setEpisode(1); }
-    setIframeKey((k) => k + 1);
-  };
+  const nextEp = useCallback(() => {
+    if (episode < totalEpisodes) {
+      setEpisode((e) => e + 1);
+    } else if (season < totalSeasons) {
+      setSeason((s) => s + 1);
+      setEpisode(1);
+    }
+    setReloadCounter((prev) => prev + 1);
+  }, [episode, totalEpisodes, season, totalSeasons]);
 
-  const selectEp     = (ep: number) => { setEpisode(ep); setIframeKey((k) => k + 1); };
-  const selectSeason = (s: number)  => { setSeason(s); setEpisode(1); setIframeKey((k) => k + 1); };
+  const selectEp = useCallback((ep: number) => {
+    setEpisode(ep);
+    setReloadCounter((prev) => prev + 1);
+  }, []);
+
+  const selectSeason = useCallback((s: number) => {
+    setSeason(s);
+    setEpisode(1);
+    setReloadCounter((prev) => prev + 1);
+  }, []);
 
   // ── Early returns ──────────────────────────────────────────
   if (!id || isNaN(id)) {
@@ -448,7 +456,7 @@ export default function WatchPage() {
               {/* Sub / Dub toggle */}
               <LangToggle lang={lang} onChange={handleLangChange} />
 
-              {/* Source switcher — only shows sources valid for current lang */}
+              {/* Source switcher */}
               <div className="flex gap-1.5 flex-wrap">
                 {sources.map((src, idx) => (
                   <button
@@ -502,7 +510,7 @@ export default function WatchPage() {
                   Showing only sources that support English dub.
                   <strong> VidSrc.icu</strong> and <strong>VidLink</strong> are most
                   reliable. Note: not all anime have an English dub available — if
-                  Japanese audio plays anyway the dub simply doesn't exist for this title.
+                  Japanese audio plays anyway, the dub simply doesn't exist for this title.
                 </p>
               </div>
             )}
