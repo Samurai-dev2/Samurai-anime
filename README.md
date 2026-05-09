@@ -18,9 +18,11 @@ No ads (already tried implementing just doesnt work)<br>
 Reactions (Like button/ Dislike button)<br>
 </ul>
 <h1>Special Thanks to...</h1>
+<ul>
 The gng (Derrar, Tawfik, Sulaiman, Tamim, Abdulrahman, Mohammed shemena and Islam)<br>
 Myself (Samurai Dev)<br>
 Jikan Api<br>
 Vidsrc<br>
 2embed<br>
 AND yeah thx for reading (BTW DISCORD SERVER COMING SOON!!)
+</ul>
