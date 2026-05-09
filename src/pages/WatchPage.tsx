@@ -36,10 +36,10 @@ function getSources(
   if (movie) {
     return [
       {
-        label: "VidSrc.icu",
-        url: `https://vidsrc.icu/embed/movie/${tmdbId}?type=${isDub ? "2" : "1"}`,
+        label: "VidSrc.cc",
+        url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`,
         supportsSub: true,
-        supportsDub: true,
+        supportsDub: false,
       },
       {
         label: "VidLink",
@@ -50,16 +50,16 @@ function getSources(
         supportsDub: true,
       },
       {
+        label: "VidSrc.xyz",
+        url: `https://vidsrc.xyz/embed/movie/${tmdbId}?ds_lang=${isDub ? "en" : "ja"}`,
+        supportsSub: true,
+        supportsDub: true,
+      },
+      {
         label: "VidSrc.me",
         url: imdbId
           ? `https://vidsrc.me/embed/movie?imdb=${imdbId}&ds_lang=${isDub ? "en" : "ja"}`
           : `https://vidsrc.me/embed/movie?tmdb=${tmdbId}&ds_lang=${isDub ? "en" : "ja"}`,
-        supportsSub: true,
-        supportsDub: false,
-      },
-      {
-        label: "VidSrc.cc",
-        url: `https://vidsrc.cc/v2/embed/movie/${tmdbId}`,
         supportsSub: true,
         supportsDub: false,
       },
@@ -74,10 +74,10 @@ function getSources(
 
   return [
     {
-      label: "VidSrc.icu",
-      url: `https://vidsrc.icu/embed/tv/${tmdbId}/${season}/${episode}?type=${isDub ? "2" : "1"}`,
+      label: "VidSrc.cc",
+      url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`,
       supportsSub: true,
-      supportsDub: true,
+      supportsDub: false,
     },
     {
       label: "VidLink",
@@ -88,16 +88,16 @@ function getSources(
       supportsDub: true,
     },
     {
+      label: "VidSrc.xyz",
+      url: `https://vidsrc.xyz/embed/tv/${tmdbId}/${season}/${episode}?ds_lang=${isDub ? "en" : "ja"}`,
+      supportsSub: true,
+      supportsDub: true,
+    },
+    {
       label: "VidSrc.me",
       url: imdbId
         ? `https://vidsrc.me/embed/tv?imdb=${imdbId}&season=${season}&episode=${episode}&ds_lang=${isDub ? "en" : "ja"}`
         : `https://vidsrc.me/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&ds_lang=${isDub ? "en" : "ja"}`,
-      supportsSub: true,
-      supportsDub: false,
-    },
-    {
-      label: "VidSrc.cc",
-      url: `https://vidsrc.cc/v2/embed/tv/${tmdbId}/${season}/${episode}`,
       supportsSub: true,
       supportsDub: false,
     },
@@ -508,9 +508,9 @@ export default function WatchPage() {
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <p>
                   Showing only sources that support English dub.
-                  <strong> VidSrc.icu</strong> and <strong>VidLink</strong> are most
-                  reliable. Note: not all anime have an English dub available — if
-                  Japanese audio plays anyway, the dub simply doesn't exist for this title.
+                  <strong> VidLink</strong> and <strong>VidSrc.xyz</strong> are most
+                  reliable for dubbed content. Note: not all anime have an English dub available — if
+                  Japanese audio plays, the dub simply doesn't exist for this title.
                 </p>
               </div>
             )}
