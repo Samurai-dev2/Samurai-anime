@@ -89,7 +89,7 @@ function getSources(
     },
     {
       label: "VidSrc.xyz",
-      url: `https://vidsrc.xyz/embed/tv/${tmdbId}/${season}/${episode}?ds_lang=${isDub ? "en" : "ja"}`,
+      url: `https://vsembed.ru/embed/tv/${tmdbId}/${season}/${episode}?ds_lang=${isDub ? "en" : "ja"}`,
       supportsSub: true,
       supportsDub: true,
     },
