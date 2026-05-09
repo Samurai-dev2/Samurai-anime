@@ -17,7 +17,7 @@ Comments<br>
 No ads (already tried implementing just doesnt work)<br>
 Reactions (Like button/ Dislike button)<br>
 </ul>
-# Special Thanks to...
+<h1>Special Thanks to...</h1>
 The gng (Derrar, Tawfik, Sulaiman, Tamim, Abdulrahman, Mohammed shemena and Islam)<br>
 Myself (Samurai Dev)<br>
 Jikan Api<br>
