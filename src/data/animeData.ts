@@ -92,7 +92,7 @@ export const FEATURED_ANIME: AnimeEntry[] = [
     rating: 7.87,
     episodes: 26,
     status: "Finished",
-    coverImage: "https://cdn.myanimelist.net/images/anime/3/40451.jpg",
+    coverImage: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSaghQ6UwmiO_jgTk3QAHoEQo_sUxZ2Qy-low&s",
     bannerImage:
       "https://artworks.thetvdb.com/banners/v4/series/263023/backgrounds/62b9b7745568f.jpg",
     season: 1,
@@ -173,7 +173,7 @@ export const LIBRARY_ANIME: AnimeEntry[] = [
     rating: 7.92,
     episodes: 366,
     status: "Finished",
-    coverImage: "https://cdn.myanimelist.net/images/anime/1668/127822.jpg", // ✅ FIXED - was using JoJo's image
+    coverImage: "https://cdn.myanimelist.net/images/anime/3/40451.jpg" // ✅ FIXED - was using JoJo's image
     bannerImage:
       "https://artworks.thetvdb.com/banners/v4/series/74796/backgrounds/5e5c4e7a62459.jpg",
     season: 1,
