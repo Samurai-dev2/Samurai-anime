@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, SlidersHorizontal, X, Play, Star, BookmarkCheck } from "lucide-react";
+import { Search, SlidersHorizontal, X, Play, Star, BookmarkCheck, Library } from "lucide-react";
 import { LIBRARY_ANIME, AnimeEntry, GENRES } from "../data/animeData";
 
 const STATUS_OPTIONS = ["All", "Airing", "Finished", "Upcoming"];
@@ -11,6 +11,25 @@ const SORT_OPTIONS = [
   { label: "Title A–Z", value: "title" },
   { label: "Episodes ↑", value: "episodes" },
 ];
+
+const INITIAL_LOAD = 24; // Load 24 items initially
+const LOAD_MORE_COUNT = 24; // Load 24 more each time
+
+function SkeletonCard() {
+  return (
+    <div className="bg-gray-900 rounded-2xl overflow-hidden border border-white/5">
+      <div className="aspect-[3/4] bg-gray-800 animate-pulse" />
+      <div className="p-3 space-y-2">
+        <div className="h-4 bg-gray-800 rounded animate-pulse w-3/4" />
+        <div className="h-3 bg-gray-800 rounded animate-pulse w-1/2" />
+        <div className="flex gap-1 mt-2">
+          <div className="h-5 w-14 bg-gray-800 rounded animate-pulse" />
+          <div className="h-5 w-14 bg-gray-800 rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AnimeGridCard({ anime }: { anime: AnimeEntry }) {
   const navigate = useNavigate();
@@ -115,7 +134,10 @@ export default function LibraryPage() {
   const [status, setStatus] = useState("All");
   const [sort, setSort] = useState("rating");
   const [showFilters, setShowFilters] = useState(false);
+  const [displayCount, setDisplayCount] = useState(INITIAL_LOAD);
+  const [loading, setLoading] = useState(false);
 
+  // Filter and sort anime
   const filtered = useMemo(() => {
     let list = [...LIBRARY_ANIME];
 
@@ -162,10 +184,27 @@ export default function LibraryPage() {
     return list;
   }, [query, selectedGenres, status, sort]);
 
+  // Display subset based on displayCount
+  const displayed = useMemo(() => {
+    return filtered.slice(0, displayCount);
+  }, [filtered, displayCount]);
+
+  const hasMore = displayCount < filtered.length;
+
+  const loadMore = () => {
+    setLoading(true);
+    // Simulate loading delay for smooth UX
+    setTimeout(() => {
+      setDisplayCount((prev) => prev + LOAD_MORE_COUNT);
+      setLoading(false);
+    }, 300);
+  };
+
   const toggleGenre = (g: string) => {
     setSelectedGenres((prev) =>
       prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
     );
+    setDisplayCount(INITIAL_LOAD); // Reset display count on filter change
   };
 
   const clearFilters = () => {
@@ -173,23 +212,43 @@ export default function LibraryPage() {
     setSelectedGenres([]);
     setStatus("All");
     setSort("rating");
+    setDisplayCount(INITIAL_LOAD);
   };
 
   const hasFilters = query || selectedGenres.length > 0 || status !== "All" || sort !== "rating";
+
+  // Reset display count when filters change
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setDisplayCount(INITIAL_LOAD);
+  };
+
+  const handleStatusChange = (value: string) => {
+    setStatus(value);
+    setDisplayCount(INITIAL_LOAD);
+  };
+
+  const handleSortChange = (value: string) => {
+    setSort(value);
+    setDisplayCount(INITIAL_LOAD);
+  };
 
   return (
     <div className="bg-black min-h-screen pt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1
-            className="text-4xl sm:text-5xl font-black text-white mb-2"
-            style={{ fontFamily: "Rajdhani, sans-serif" }}
-          >
-            <span className="text-red-500">Anime</span> Library
-          </h1>
+          <div className="flex items-center gap-2 mb-2">
+            <Library className="w-8 h-8 text-red-400" />
+            <h1
+              className="text-4xl sm:text-5xl font-black text-white"
+              style={{ fontFamily: "Rajdhani, sans-serif" }}
+            >
+              <span className="text-red-500">Anime</span> Library
+            </h1>
+          </div>
           <p className="text-gray-500">
-            {filtered.length} title{filtered.length !== 1 ? "s" : ""} — 100% safe, no NSFW content
+            {filtered.length} title{filtered.length !== 1 ? "s" : ""} available — 100% safe, no NSFW content
           </p>
         </div>
 
@@ -199,14 +258,14 @@ export default function LibraryPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               placeholder="Search title, genre, tag..."
-              className="w-full h-10 pl-10 pr-4 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-gray-600 focus:outline-none focus:border-red-500/50"
+              className="w-full h-10 pl-10 pr-4 bg-white/5 border border-white/10 rounded-xl text-white text-sm placeholder-gray-600 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/20"
             />
           </div>
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
+            onChange={(e) => handleSortChange(e.target.value)}
             className="h-10 px-3 bg-white/5 border border-white/10 rounded-xl text-gray-300 text-sm focus:outline-none focus:border-red-500/50"
           >
             {SORT_OPTIONS.map((o) => (
@@ -246,7 +305,7 @@ export default function LibraryPage() {
                 {STATUS_OPTIONS.map((s) => (
                   <button
                     key={s}
-                    onClick={() => setStatus(s)}
+                    onClick={() => handleStatusChange(s)}
                     className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                       status === s
                         ? "bg-red-600 text-white"
@@ -281,6 +340,13 @@ export default function LibraryPage() {
           </div>
         )}
 
+        {/* Results info */}
+        {filtered.length > 0 && (
+          <div className="mb-4 text-sm text-gray-500">
+            Showing {displayed.length} of {filtered.length} title{filtered.length !== 1 ? "s" : ""}
+          </div>
+        )}
+
         {/* Grid */}
         {filtered.length === 0 ? (
           <div className="text-center py-24">
@@ -295,11 +361,40 @@ export default function LibraryPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filtered.map((anime) => (
-              <AnimeGridCard key={anime.malId} anime={anime} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {displayed.map((anime) => (
+                <AnimeGridCard key={anime.malId} anime={anime} />
+              ))}
+              
+              {/* Loading skeletons */}
+              {loading &&
+                Array.from({ length: LOAD_MORE_COUNT }).map((_, i) => (
+                  <SkeletonCard key={`skeleton-${i}`} />
+                ))}
+            </div>
+
+            {/* Load More button */}
+            {hasMore && !loading && (
+              <div className="text-center mt-8">
+                <button
+                  onClick={loadMore}
+                  className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-red-500/30 text-white rounded-xl transition-all text-sm font-medium"
+                >
+                  Load More ({filtered.length - displayCount} remaining)
+                </button>
+              </div>
+            )}
+
+            {/* End of results */}
+            {!hasMore && displayed.length > INITIAL_LOAD && (
+              <div className="text-center mt-8 py-4">
+                <p className="text-gray-600 text-sm">
+                  ✨ You've reached the end — {displayed.length} title{displayed.length !== 1 ? "s" : ""} loaded
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
