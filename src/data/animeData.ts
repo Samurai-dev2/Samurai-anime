@@ -173,7 +173,7 @@ export const LIBRARY_ANIME: AnimeEntry[] = [
     rating: 7.92,
     episodes: 366,
     status: "Finished",
-    coverImage: "https://cdn.myanimelist.net/images/anime/3/40451.jpg" // ✅ FIXED - was using JoJo's image
+    coverImage: "https://cdn.myanimelist.net/images/anime/3/40451.jpg" ,// ✅ FIXED - was using JoJo's image
     bannerImage:
       "https://artworks.thetvdb.com/banners/v4/series/74796/backgrounds/5e5c4e7a62459.jpg",
     season: 1,
