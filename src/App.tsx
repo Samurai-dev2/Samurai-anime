@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import Navbar from "./components/Navbar";
 import HomePage from "./pages/HomePage";
@@ -10,59 +10,63 @@ import BrowsePage from "./pages/BrowsePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+// ─── Grab key once ─────────────────────────────────────────────────────────
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
-if (!publishableKey) {
-  throw new Error("Missing Clerk publishable key — check your .env file");
+// ─── Loading Spinner ───────────────────────────────────────────────────────
+function LoadingScreen() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-2 border-zinc-800 border-t-red-500 rounded-full animate-spin" />
+        <p className="text-zinc-600 text-sm">Loading...</p>
+      </div>
+    </div>
+  );
 }
 
-// ─── Protected Route Wrapper ───────────────────────────────────────────────
-// Any page wrapped in this will redirect to /login if not signed in
+// ─── 404 Page ──────────────────────────────────────────────────────────────
+function NotFoundPage() {
+  return (
+    <div className="flex items-center justify-center min-h-screen flex-col gap-4">
+      <div className="text-8xl font-black text-red-600 opacity-30">404</div>
+      <p className="text-gray-400 text-xl">Page not found</p>
+      <a
+        href="/"
+        className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl transition-colors"
+      >
+        Go Home
+      </a>
+    </div>
+  );
+}
+
+// ─── Protected Route ───────────────────────────────────────────────────────
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
-
-  // Clerk is still figuring out if user is logged in, show nothing yet
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-zinc-700 border-t-red-500 rounded-full animate-spin" />
-          <p className="text-zinc-500 text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Not signed in → kick them to login
-  if (!isSignedIn) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!isLoaded) return <LoadingScreen />;
+  if (!isSignedIn) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
-// ─── Auth Route Wrapper ────────────────────────────────────────────────────
-// If already signed in, skip login/signup and go home
+// ─── Auth Route (already signed in → go home) ─────────────────────────────
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
-
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-10 h-10 border-2 border-zinc-700 border-t-red-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // Already signed in → no need to see login/signup
-  if (isSignedIn) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (!isLoaded) return <LoadingScreen />;
+  if (isSignedIn) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
-// ─── Inner App (needs to be inside ClerkProvider to use useAuth) ───────────
+// ─── Navbar wrapper — hides on auth pages ─────────────────────────────────
+function NavbarWrapper() {
+  const location = useLocation();
+  const authPages = ["/login", "/signup"];
+  const isAuthPage = authPages.includes(location.pathname);
+  if (isAuthPage) return null;
+  return <Navbar />;
+}
+
+// ─── App Content ──────────────────────────────────────────────────────────
 function AppContent() {
   return (
     <BrowserRouter>
@@ -70,20 +74,16 @@ function AppContent() {
         className="min-h-screen bg-black text-white"
         style={{ fontFamily: "Inter, sans-serif" }}
       >
-        {/* Navbar hidden on auth pages */}
-        <Routes>
-          <Route path="/login" element={null} />
-          <Route path="/signup" element={null} />
-          <Route path="*" element={<Navbar />} />
-        </Routes>
+        {/* Single Navbar that hides itself on auth pages */}
+        <NavbarWrapper />
 
         <Routes>
-          {/* ── Public Routes ── */}
+          {/* ── Public ── */}
           <Route path="/" element={<HomePage />} />
           <Route path="/anime/:malId" element={<AnimeDetailPage />} />
           <Route path="/browse" element={<BrowsePage />} />
 
-          {/* ── Auth Routes (redirect home if already signed in) ── */}
+          {/* ── Auth pages ── */}
           <Route
             path="/login"
             element={
@@ -101,7 +101,7 @@ function AppContent() {
             }
           />
 
-          {/* ── Protected Routes (must be signed in) ── */}
+          {/* ── Protected ── */}
           <Route
             path="/watch/:malId"
             element={
@@ -120,31 +120,32 @@ function AppContent() {
           />
 
           {/* ── 404 ── */}
-          <Route
-            path="*"
-            element={
-              <div className="flex items-center justify-center min-h-screen flex-col gap-4">
-                <div className="text-8xl font-black text-red-600 opacity-30">
-                  404
-                </div>
-                <p className="text-gray-400 text-xl">Page not found</p>
-                <a
-                  href="/"
-                  className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl transition-colors"
-                >
-                  Go Home
-                </a>
-              </div>
-            }
-          />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
     </BrowserRouter>
   );
 }
 
-// ─── Root App (ClerkProvider wraps everything) ─────────────────────────────
+// ─── Root ─────────────────────────────────────────────────────────────────
 export default function App() {
+  // If key is missing show a readable error instead of black screen
+  if (!publishableKey) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black flex-col gap-4 px-4">
+        <div className="text-6xl">⚠️</div>
+        <h1 className="text-white text-2xl font-bold">Missing Clerk Key</h1>
+        <p className="text-zinc-400 text-sm text-center max-w-md">
+          Create a <span className="text-red-400 font-mono">.env</span> file in
+          your project root and add:
+        </p>
+        <code className="bg-zinc-900 border border-zinc-700 text-red-400 px-4 py-3 rounded-xl text-sm">
+          VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
+        </code>
+      </div>
+    );
+  }
+
   return (
     <ClerkProvider publishableKey={publishableKey}>
       <AppContent />
