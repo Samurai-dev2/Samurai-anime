@@ -1,13 +1,9 @@
 // src/pages/SignupPage.tsx
 import { useSignUp } from '@clerk/clerk-react';
 import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 
-interface SignupPageProps {
-  onSuccess: () => void;
-  onGoToLogin: () => void;
-}
-
-// Password strength calculator
+// ─── Password strength calculator ─────────────────────────────────────────
 const getStrength = (p: string) => {
   if (!p) return null;
   const checks = {
@@ -19,28 +15,30 @@ const getStrength = (p: string) => {
   const score = Object.values(checks).filter(Boolean).length;
   const map = [
     null,
-    { label: 'Weak', color: 'bg-red-500', textColor: 'text-red-400', width: '25%' },
-    { label: 'Fair', color: 'bg-orange-500', textColor: 'text-orange-400', width: '50%' },
-    { label: 'Good', color: 'bg-yellow-500', textColor: 'text-yellow-400', width: '75%' },
-    { label: 'Strong', color: 'bg-green-500', textColor: 'text-green-400', width: '100%' },
+    { label: 'Weak',   color: 'bg-red-500',    textColor: 'text-red-400',    width: '25%'  },
+    { label: 'Fair',   color: 'bg-orange-500',  textColor: 'text-orange-400', width: '50%'  },
+    { label: 'Good',   color: 'bg-yellow-500',  textColor: 'text-yellow-400', width: '75%'  },
+    { label: 'Strong', color: 'bg-green-500',   textColor: 'text-green-400',  width: '100%' },
   ];
   return { ...map[score], checks };
 };
 
-export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) {
+// ─── No props needed — uses react-router navigate ──────────────────────────
+export default function SignupPage() {
+  const navigate = useNavigate();
   const { isLoaded, signUp, setActive } = useSignUp();
 
-  const [step, setStep] = useState<'form' | 'verify'>('form');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [step, setStep]                     = useState<'form' | 'verify'>('form');
+  const [username, setUsername]             = useState('');
+  const [email, setEmail]                   = useState('');
+  const [password, setPassword]             = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [mounted, setMounted] = useState(false);
+  const [showPassword, setShowPassword]     = useState(false);
+  const [submitting, setSubmitting]         = useState(false);
+  const [error, setError]                   = useState('');
+  const [fieldErrors, setFieldErrors]       = useState<Record<string, string>>({});
+  const [mounted, setMounted]               = useState(false);
 
   useEffect(() => {
     setTimeout(() => setMounted(true), 50);
@@ -50,19 +48,24 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!username.trim()) errs.username = 'Username is required';
+    if (!username.trim())        errs.username = 'Username is required';
     else if (username.length < 3) errs.username = 'At least 3 characters';
-    if (!email.trim()) errs.email = 'Email is required';
+    if (!email.trim())           errs.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(email)) errs.email = 'Enter a valid email';
-    if (!password) errs.password = 'Password is required';
+    if (!password)               errs.password = 'Password is required';
     else if (password.length < 8) errs.password = 'At least 8 characters';
     if (password !== confirmPassword) errs.confirmPassword = "Passwords don't match";
     return errs;
   };
 
+  // ─── Step 1: Create account ──────────────────────────────────────────────
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+
+    if (!isLoaded || !signUp) {
+      setError('Auth not ready yet, please wait a moment');
+      return;
+    }
 
     const errs = validate();
     if (Object.keys(errs).length) {
@@ -75,26 +78,51 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
     setSubmitting(true);
 
     try {
-      await signUp.create({
+      // Create the account
+      const result = await signUp.create({
         username,
         emailAddress: email,
         password,
       });
 
-      // Send email verification
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      console.log('signUp.create result:', result.status);
+
+      // If clerk skipped verification and its already complete
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        navigate('/');
+        return;
+      }
+
+      // Otherwise send the email verification code
+      await signUp.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
       setStep('verify');
+
     } catch (err: any) {
-      const msg = err.errors?.[0]?.message || 'Signup failed. Please try again.';
+      console.error('Signup error:', err);
+
+      // Pull the most useful error message from clerk
+      const clerkError = err?.errors?.[0];
+      const msg =
+        clerkError?.longMessage ||
+        clerkError?.message ||
+        err?.message ||
+        'Signup failed. Please try again.';
+
       setError(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ─── Step 2: Verify email code ───────────────────────────────────────────
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+
+    if (!isLoaded || !signUp) return;
 
     setError('');
     setSubmitting(true);
@@ -104,12 +132,23 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
         code: verificationCode,
       });
 
+      console.log('verify result:', result.status);
+
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
-        onSuccess();
+        navigate('/');
+      } else {
+        // Something else is needed
+        setError('Verification incomplete. Please try again.');
       }
+
     } catch (err: any) {
-      const msg = err.errors?.[0]?.message || 'Invalid code. Please try again.';
+      console.error('Verify error:', err);
+      const clerkError = err?.errors?.[0];
+      const msg =
+        clerkError?.longMessage ||
+        clerkError?.message ||
+        'Invalid code. Please try again.';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -129,8 +168,8 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
   return (
     <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4 py-10 relative overflow-hidden">
 
-      {/* Background */}
-      <div className="absolute inset-0">
+      {/* Background glows */}
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-900/20 rounded-full blur-[120px]" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-red-800/10 rounded-full blur-[100px]" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-900/10 rounded-full blur-[100px]" />
@@ -152,7 +191,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
       >
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-3 mb-4">
+          <Link to="/" className="inline-flex items-center gap-3 mb-4">
             <div className="relative">
               <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/50">
                 <span className="text-2xl">⚔️</span>
@@ -167,9 +206,10 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                 Anime Universe
               </p>
             </div>
-          </div>
+          </Link>
         </div>
 
+        {/* Card */}
         <div className="relative">
           <div className="absolute -inset-[1px] bg-gradient-to-b from-red-500/30 via-zinc-800/50 to-zinc-900/30 rounded-2xl blur-sm" />
           <div className="relative bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-8 shadow-2xl">
@@ -187,7 +227,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                 {error && (
                   <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3">
                     <span className="text-red-400 text-lg leading-none mt-0.5">⚠</span>
-                    <p className="text-red-400 text-sm">{error}</p>
+                    <p className="text-red-400 text-sm leading-relaxed">{error}</p>
                   </div>
                 )}
 
@@ -195,7 +235,9 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
 
                   {/* Username */}
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-medium text-zinc-300">Username</label>
+                    <label className="block text-sm font-medium text-zinc-300">
+                      Username
+                    </label>
                     <div className="relative group">
                       <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -208,6 +250,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                         onChange={e => {
                           setUsername(e.target.value);
                           setFieldErrors(p => ({ ...p, username: '' }));
+                          setError('');
                         }}
                         placeholder="SamuraiWatcher"
                         className={inputClass('username')}
@@ -222,7 +265,9 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
 
                   {/* Email */}
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-medium text-zinc-300">Email</label>
+                    <label className="block text-sm font-medium text-zinc-300">
+                      Email
+                    </label>
                     <div className="relative group">
                       <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -235,6 +280,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                         onChange={e => {
                           setEmail(e.target.value);
                           setFieldErrors(p => ({ ...p, email: '' }));
+                          setError('');
                         }}
                         placeholder="you@example.com"
                         className={inputClass('email')}
@@ -249,7 +295,9 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
 
                   {/* Password */}
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-medium text-zinc-300">Password</label>
+                    <label className="block text-sm font-medium text-zinc-300">
+                      Password
+                    </label>
                     <div className="relative group">
                       <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-red-400 transition-colors">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -262,6 +310,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                         onChange={e => {
                           setPassword(e.target.value);
                           setFieldErrors(p => ({ ...p, password: '' }));
+                          setError('');
                         }}
                         placeholder="••••••••"
                         className={`${inputClass('password')} pr-12`}
@@ -299,15 +348,15 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                           </p>
                           <div className="flex items-center gap-2">
                             {[
-                              { key: 'length', label: '8+' },
-                              { key: 'upper', label: 'A-Z' },
-                              { key: 'number', label: '0-9' },
+                              { key: 'length',  label: '8+' },
+                              { key: 'upper',   label: 'A-Z' },
+                              { key: 'number',  label: '0-9' },
                               { key: 'special', label: '!@#' },
                             ].map(({ key, label }) => (
                               <span
                                 key={key}
                                 className={`text-xs px-1.5 py-0.5 rounded font-mono transition-colors ${
-                                  strength.checks[key as keyof typeof strength.checks]
+                                  strength!.checks[key as keyof typeof strength.checks]
                                     ? 'bg-green-500/20 text-green-400'
                                     : 'bg-zinc-800 text-zinc-600'
                                 }`}
@@ -327,7 +376,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                     )}
                   </div>
 
-                  {/* Confirm password */}
+                  {/* Confirm Password */}
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-zinc-300">
                       Confirm Password
@@ -344,11 +393,11 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                         onChange={e => {
                           setConfirmPassword(e.target.value);
                           setFieldErrors(p => ({ ...p, confirmPassword: '' }));
+                          setError('');
                         }}
                         placeholder="••••••••"
                         className={inputClass('confirmPassword')}
                       />
-                      {/* Match indicator */}
                       {confirmPassword && (
                         <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
                           {password === confirmPassword ? (
@@ -395,14 +444,29 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                     )}
                   </button>
                 </form>
+
+                {/* Divider + switch to login */}
+                <div className="my-6 flex items-center gap-4">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent to-zinc-700" />
+                  <span className="text-zinc-600 text-xs font-medium">OR</span>
+                  <div className="flex-1 h-px bg-gradient-to-l from-transparent to-zinc-700" />
+                </div>
+                <p className="text-center text-zinc-500 text-sm">
+                  Already have an account?{' '}
+                  <Link
+                    to="/login"
+                    className="text-red-400 hover:text-red-300 font-semibold transition-colors hover:underline underline-offset-2"
+                  >
+                    Sign in →
+                  </Link>
+                </p>
               </>
             )}
 
-            {/* ── STEP 2: EMAIL VERIFICATION ── */}
+            {/* ── STEP 2: VERIFY EMAIL ── */}
             {step === 'verify' && (
               <>
                 <div className="mb-8 text-center">
-                  {/* Icon */}
                   <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -418,7 +482,7 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                 {error && (
                   <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3">
                     <span className="text-red-400 text-lg leading-none mt-0.5">⚠</span>
-                    <p className="text-red-400 text-sm">{error}</p>
+                    <p className="text-red-400 text-sm leading-relaxed">{error}</p>
                   </div>
                 )}
 
@@ -430,9 +494,12 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
                     <input
                       type="text"
                       value={verificationCode}
-                      onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={e =>
+                        setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                      }
                       placeholder="000000"
                       maxLength={6}
+                      autoFocus
                       className="
                         w-full px-4 py-4 rounded-xl bg-zinc-800/80 text-white text-center
                         text-2xl font-mono tracking-[0.5em] placeholder-zinc-700
@@ -469,32 +536,16 @@ export default function SignupPage({ onSuccess, onGoToLogin }: SignupPageProps) 
 
                   <button
                     type="button"
-                    onClick={() => setStep('form')}
-                    className="w-full text-center text-zinc-500 text-sm hover:text-zinc-300 transition-colors"
+                    onClick={() => {
+                      setStep('form');
+                      setError('');
+                      setVerificationCode('');
+                    }}
+                    className="w-full text-center text-zinc-500 text-sm hover:text-zinc-300 transition-colors py-2"
                   >
                     ← Back to signup
                   </button>
                 </form>
-              </>
-            )}
-
-            {/* Divider + switch */}
-            {step === 'form' && (
-              <>
-                <div className="my-6 flex items-center gap-4">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent to-zinc-700" />
-                  <span className="text-zinc-600 text-xs font-medium">OR</span>
-                  <div className="flex-1 h-px bg-gradient-to-l from-transparent to-zinc-700" />
-                </div>
-                <p className="text-center text-zinc-500 text-sm">
-                  Already have an account?{' '}
-                  <button
-                    onClick={onGoToLogin}
-                    className="text-red-400 hover:text-red-300 font-semibold transition-colors hover:underline underline-offset-2"
-                  >
-                    Sign in →
-                  </button>
-                </p>
               </>
             )}
           </div>
