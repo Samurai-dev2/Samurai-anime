@@ -1,18 +1,26 @@
+// src/components/Navbar.tsx
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Search, Menu, X, Swords, BookOpen, Home, Compass } from "lucide-react";
+import { Search, Menu, X, Swords, BookOpen, Home, Compass, LogOut, LogIn, UserPlus } from "lucide-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { useAnimeSearch } from "../hooks/useJikan";
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { data: results, loading } = useAnimeSearch(query);
   const navigate = useNavigate();
   const location = useLocation();
   const searchRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Clerk hooks
+  const { isSignedIn, signOut, isLoaded } = useAuth();
+  const { user } = useUser();
+
+  // Close search dropdown when clicking outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -24,6 +32,28 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Close user menu when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    setUserMenuOpen(false);
+    navigate("/");
+  };
+
   const navLinks = [
     { to: "/", label: "Home", icon: Home },
     { to: "/library", label: "Library", icon: BookOpen },
@@ -32,10 +62,10 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      {/* Glassmorphism bar */}
       <div className="relative bg-black/60 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
-          {/* Logo */}
+
+          {/* ── Logo ── */}
           <Link to="/" className="flex items-center gap-2 mr-6 flex-shrink-0">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center shadow-lg shadow-red-900/50">
               <Swords className="w-5 h-5 text-white" />
@@ -49,7 +79,7 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Desktop Nav Links */}
+          {/* ── Desktop Nav Links ── */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map(({ to, label, icon: Icon }) => (
               <Link
@@ -67,15 +97,22 @@ export default function Navbar() {
             ))}
           </nav>
 
-          {/* Search */}
-          <div className="ml-auto flex items-center gap-2" ref={searchRef}>
-            <div className={`relative transition-all duration-300 ${searchOpen ? "w-64 sm:w-80" : "w-10"}`}>
+          {/* ── Search ── */}
+          <div className="ml-auto flex items-center gap-3" ref={searchRef}>
+            <div
+              className={`relative transition-all duration-300 ${
+                searchOpen ? "w-64 sm:w-80" : "w-10"
+              }`}
+            >
               <button
                 onClick={() => setSearchOpen(true)}
-                className={`absolute left-0 top-0 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-white transition-colors ${searchOpen ? "pointer-events-none" : ""}`}
+                className={`absolute left-0 top-0 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-white transition-colors ${
+                  searchOpen ? "pointer-events-none" : ""
+                }`}
               >
                 <Search className="w-5 h-5" />
               </button>
+
               {searchOpen && (
                 <>
                   <input
@@ -92,13 +129,18 @@ export default function Navbar() {
                       }
                     }}
                   />
-                  {/* Search results dropdown */}
+
+                  {/* Search Results Dropdown */}
                   {query.trim() && (
                     <div className="absolute top-12 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
                       {loading ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">Searching...</div>
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          Searching...
+                        </div>
                       ) : results.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">No results found</div>
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          No results found
+                        </div>
                       ) : (
                         results.slice(0, 6).map((anime) => (
                           <button
@@ -130,7 +172,9 @@ export default function Navbar() {
                       {results.length > 0 && (
                         <button
                           onClick={() => {
-                            navigate(`/browse?q=${encodeURIComponent(query.trim())}`);
+                            navigate(
+                              `/browse?q=${encodeURIComponent(query.trim())}`
+                            );
                             setSearchOpen(false);
                             setQuery("");
                           }}
@@ -144,18 +188,129 @@ export default function Navbar() {
                 </>
               )}
             </div>
+
+            {/* ── Auth Section ── */}
+            {/* Show nothing while clerk is figuring out auth state */}
+            {isLoaded && (
+              <>
+                {isSignedIn ? (
+                  // ── Signed In — Avatar + dropdown ──
+                  <div className="relative" ref={userMenuRef}>
+                    <button
+                      onClick={() => setUserMenuOpen((p) => !p)}
+                      className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all duration-200"
+                    >
+                      {/* Avatar */}
+                      {user?.imageUrl ? (
+                        <img
+                          src={user.imageUrl}
+                          alt={user.username ?? "User"}
+                          className="w-7 h-7 rounded-lg object-cover ring-2 ring-red-500/40"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center text-xs font-bold text-white">
+                          {user?.username?.[0]?.toUpperCase() ??
+                            user?.firstName?.[0]?.toUpperCase() ??
+                            "S"}
+                        </div>
+                      )}
+                      {/* Username — hidden on small screens */}
+                      <span className="text-sm text-gray-300 font-medium hidden sm:block max-w-[100px] truncate">
+                        {user?.username ?? user?.firstName ?? "Samurai"}
+                      </span>
+                      {/* Chevron */}
+                      <svg
+                        className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 hidden sm:block ${
+                          userMenuOpen ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+
+                    {/* User Dropdown */}
+                    {userMenuOpen && (
+                      <div className="absolute right-0 top-12 w-56 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+                        {/* User info header */}
+                        <div className="px-4 py-3 border-b border-white/5">
+                          <p className="text-white text-sm font-semibold truncate">
+                            {user?.username ?? user?.firstName ?? "Samurai"}
+                          </p>
+                          <p className="text-gray-500 text-xs truncate mt-0.5">
+                            {user?.primaryEmailAddress?.emailAddress ?? ""}
+                          </p>
+                        </div>
+
+                        {/* Menu items */}
+                        <div className="p-1.5 space-y-0.5">
+                          <Link
+                            to="/library"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                          >
+                            <BookOpen className="w-4 h-4 text-gray-500" />
+                            My Library
+                          </Link>
+
+                          {/* Divider */}
+                          <div className="h-px bg-white/5 my-1" />
+
+                          <button
+                            onClick={handleSignOut}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Sign Out
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // ── Not Signed In — Login + Signup buttons ──
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to="/login"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Log In
+                    </Link>
+                    <Link
+                      to="/signup"
+                      className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl
+                        bg-gradient-to-r from-red-700 to-red-500
+                        hover:from-red-600 hover:to-red-400
+                        transition-all duration-200 shadow-lg shadow-red-900/30
+                        hover:-translate-y-0.5 active:translate-y-0"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span className="hidden sm:block">Sign Up</span>
+                    </Link>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Mobile menu button */}
+          {/* ── Mobile Menu Button ── */}
           <button
-            className="md:hidden text-gray-400 hover:text-white"
+            className="md:hidden text-gray-400 hover:text-white transition-colors"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
+        {/* ── Mobile Menu ── */}
         {menuOpen && (
           <div className="md:hidden border-t border-white/5 px-4 py-3 space-y-1">
             {navLinks.map(({ to, label, icon: Icon }) => (
@@ -173,6 +328,65 @@ export default function Navbar() {
                 {label}
               </Link>
             ))}
+
+            {/* Mobile Auth */}
+            {isLoaded && (
+              <div className="pt-2 border-t border-white/5 mt-2 space-y-1">
+                {isSignedIn ? (
+                  <>
+                    {/* Mobile user info */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      {user?.imageUrl ? (
+                        <img
+                          src={user.imageUrl}
+                          alt=""
+                          className="w-8 h-8 rounded-lg object-cover ring-2 ring-red-500/40"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center text-sm font-bold text-white">
+                          {user?.username?.[0]?.toUpperCase() ?? "S"}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate">
+                          {user?.username ?? user?.firstName ?? "Samurai"}
+                        </p>
+                        <p className="text-gray-500 text-xs truncate">
+                          {user?.primaryEmailAddress?.emailAddress ?? ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Log In
+                    </Link>
+                    <Link
+                      to="/signup"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Sign Up
+                    </Link>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
