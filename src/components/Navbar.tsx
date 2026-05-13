@@ -66,7 +66,7 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
 
           {/* ── Logo ── */}
-          <Link to="../public/images/samurai-logo.png" className="flex items-center gap-2 mr-6 flex-shrink-0">
+          <Link to="/" className="flex items-center gap-2 mr-6 flex-shrink-0">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center shadow-lg shadow-red-900/50">
               <Swords className="w-5 h-5 text-white" />
             </div>
