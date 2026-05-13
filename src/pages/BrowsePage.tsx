@@ -134,7 +134,7 @@ export default function BrowsePage() {
 
             {/* Top */}
             <section>
-              <SectionHeader icon={TrendingUp} title="Most Popular on MAL" />
+              <SectionHeader icon={TrendingUp} title="Popular" />
               <AnimeGrid items={topAnime} loading={topLoading} />
             </section>
           </div>
