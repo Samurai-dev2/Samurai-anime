@@ -1,6 +1,9 @@
 // src/pages/AnimeDetailPage.tsx
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { useAuth } from "@clerk/clerk-react";
+import { useAnimeReactions } from "../hooks/useAnimeReactions";
 import {
   Play, Star, Calendar, Tv, Users,
   ArrowLeft, BookmarkPlus, Check, AlertTriangle,
@@ -13,7 +16,14 @@ export default function AnimeDetailPage() {
   const { malId } = useParams<{ malId: string }>();
   const navigate  = useNavigate();
   const id        = parseInt(malId || "0");
-
+const { isSignedIn } = useAuth();
+const {
+  likes, dislikes, myReaction,
+  loading: reactionsLoading,
+  mutating: reactionsMutating,
+  error: reactionsError,
+  react,
+} = useAnimeReactions(id);
   const localAnime = LIBRARY_ANIME.find((a) => a.malId === id) as AnimeEntry | undefined;
 
   // Only fetch Jikan if not in local library
@@ -48,7 +58,77 @@ export default function AnimeDetailPage() {
     localStorage.setItem("samurai_watchlist", JSON.stringify(newWl));
     setWatchlisted(!watchlisted);
   };
+{/* ── Like / Dislike ── */}
+<div className="flex items-center gap-2 mt-3 justify-center sm:justify-start">
 
+  {/* like button */}
+  <button
+    disabled={!isSignedIn || reactionsMutating}
+    onClick={() => react("like")}
+    title={!isSignedIn ? "Sign in to like" : "Like"}
+    className={`
+      group flex items-center gap-2 px-4 py-2.5 rounded-xl
+      border font-semibold text-sm transition-all duration-200
+      ${myReaction === "like"
+        ? "bg-green-500/15 border-green-500/50 text-green-300 shadow-lg shadow-green-900/20"
+        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20 hover:text-white"
+      }
+      disabled:opacity-50 disabled:cursor-not-allowed
+    `}
+  >
+    <ThumbsUp className={`w-4 h-4 transition-transform group-hover:scale-110 ${myReaction === "like" ? "fill-green-400 text-green-400" : ""}`} />
+    <span>{reactionsLoading ? "—" : likes.toLocaleString()}</span>
+  </button>
+
+  {/* dislike button */}
+  <button
+    disabled={!isSignedIn || reactionsMutating}
+    onClick={() => react("dislike")}
+    title={!isSignedIn ? "Sign in to dislike" : "Dislike"}
+    className={`
+      group flex items-center gap-2 px-4 py-2.5 rounded-xl
+      border font-semibold text-sm transition-all duration-200
+      ${myReaction === "dislike"
+        ? "bg-red-500/15 border-red-500/50 text-red-300 shadow-lg shadow-red-900/20"
+        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20 hover:text-white"
+      }
+      disabled:opacity-50 disabled:cursor-not-allowed
+    `}
+  >
+    <ThumbsDown className={`w-4 h-4 transition-transform group-hover:scale-110 ${myReaction === "dislike" ? "fill-red-400 text-red-400" : ""}`} />
+    <span>{reactionsLoading ? "—" : dislikes.toLocaleString()}</span>
+  </button>
+
+  {/* ratio bar */}
+  {!reactionsLoading && (likes + dislikes) > 0 && (
+    <div className="flex items-center gap-2 ml-1">
+      <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full transition-all duration-500"
+          style={{ width: `${Math.round((likes / (likes + dislikes)) * 100)}%` }}
+        />
+      </div>
+      <span className="text-xs text-zinc-500">
+        {Math.round((likes / (likes + dislikes)) * 100)}%
+      </span>
+    </div>
+  )}
+</div>
+
+{/* sign in nudge */}
+{!isSignedIn && (
+  <button
+    onClick={() => navigate("/login")}
+    className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors underline underline-offset-2"
+  >
+    Sign in to like or dislike
+  </button>
+)}
+
+{/* error */}
+{reactionsError && (
+  <p className="mt-2 text-xs text-red-400">{reactionsError}</p>
+)}
   // ── Loading ───────────────────────────────────────────────
   if (!localAnime && jikanLoading) {
     return (
@@ -108,26 +188,31 @@ export default function AnimeDetailPage() {
 
   return (
     <div className="bg-black min-h-screen">
-      {/* Banner */}
-      <div className="relative h-64 sm:h-96">
-        {cover ? (
-          <img
-            src={cover} alt=""
-            className="absolute inset-0 w-full h-full object-cover object-top opacity-30 blur-sm"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 to-black" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute top-20 left-4 sm:left-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm">Back</span>
-        </button>
-      </div>
+     {/* ── Banner ── */}
+<div className="relative h-72 sm:h-[30rem] overflow-hidden">
+  {cover ? (
+    <img
+      src={cover}
+      alt=""
+      className="absolute inset-0 w-full h-full object-cover object-top opacity-40 blur-sm scale-105"
+    />
+  ) : (
+    <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 to-black" />
+  )}
 
+  {/* top → black so navbar blends in */}
+  <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black" />
+  {/* left side dark so text is readable */}
+  <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/20 to-transparent" />
+
+  <button
+    onClick={() => navigate(-1)}
+    className="absolute top-20 left-4 sm:left-6 flex items-center gap-2 text-gray-300 hover:text-white transition-colors"
+  >
+    <ArrowLeft className="w-5 h-5" />
+    <span className="text-sm">Back</span>
+  </button>
+</div>
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 -mt-32 sm:-mt-48 relative z-10">
         <div className="flex flex-col sm:flex-row gap-8">
