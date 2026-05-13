@@ -12,11 +12,15 @@ there is featured anime contunue watching (currently glitched to show certain an
 </ul>
 <h1> Future Plans</h1>
 <ul>
-Log in/sign up<br>
 Comments<br>
 No ads (already tried implementing just doesnt work)<br>
 Reactions (Like button/ Dislike button)<br>
 </ul>
+<h1>UPDATES</h1>
+<ul>
+  Added Login/Signup
+</ul>
+
 <h1>Special Thanks to...</h1>
 <ul>
 The gng (Derrar, Tawfik, Sulaiman, Tamim, Abdulrahman, Mohammed shemena and Islam)<br>
