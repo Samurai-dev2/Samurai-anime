@@ -66,18 +66,25 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
 
           {/* ── Logo ── */}
-          <Link to="/" className="flex items-center gap-2 mr-6 flex-shrink-0">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center shadow-lg shadow-red-900/50">
-              <Swords className="w-5 h-5 text-white" />
-            </div>
-            <span
-              className="text-xl font-bold tracking-tight hidden sm:block"
-              style={{ fontFamily: "Rajdhani, sans-serif" }}
-            >
-              <span className="text-white">SAMURAI</span>
-              <span className="text-red-500"> ANIME</span>
-            </span>
-          </Link>
+        {/* ── Logo ── */}
+<Link to="/" className="flex items-center gap-2 mr-6 flex-shrink-0">
+  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-600 to-orange-500 flex items-center justify-center shadow-lg shadow-red-900/50 overflow-hidden">
+    <img
+      src="/images/samurai-logo.png"
+      alt="Samurai Anime"
+      className="w-full h-full object-contain p-1"
+      draggable={false}
+    />
+  </div>
+
+  <span
+    className="text-xl font-bold tracking-tight hidden sm:block"
+    style={{ fontFamily: "Rajdhani, sans-serif" }}
+  >
+    <span className="text-white">SAMURAI</span>
+    <span className="text-red-500"> ANIME</span>
+  </span>
+</Link>
 
           {/* ── Desktop Nav Links ── */}
           <nav className="hidden md:flex items-center gap-1">
@@ -97,97 +104,97 @@ export default function Navbar() {
             ))}
           </nav>
 
-          {/* ── Search ── */}
-          <div className="ml-auto flex items-center gap-3" ref={searchRef}>
-            <div
-              className={`relative transition-all duration-300 ${
-                searchOpen ? "w-64 sm:w-80" : "w-10"
-              }`}
-            >
-              <button
-                onClick={() => setSearchOpen(true)}
-                className={`absolute left-0 top-0 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-white transition-colors ${
-                  searchOpen ? "pointer-events-none" : ""
-                }`}
-              >
-                <Search className="w-5 h-5" />
-              </button>
+<div className="ml-auto flex items-center gap-3">
+  {/* ── Search ── */}
+  <div ref={searchRef} className="flex items-center">
+    {searchOpen ? (
+      <div className="relative w-64 sm:w-80">
+        {/* icon inside input, vertically centered */}
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+          <Search className="w-4 h-4" />
+        </div>
 
-              {searchOpen && (
-                <>
-                  <input
-                    autoFocus
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search anime..."
-                    className="w-full h-10 pl-10 pr-4 bg-white/10 border border-white/10 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && query.trim()) {
-                        navigate(`/browse?q=${encodeURIComponent(query.trim())}`);
-                        setSearchOpen(false);
-                        setQuery("");
-                      }
-                    }}
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search anime..."
+          className="w-full h-9 pl-9 pr-4 bg-white/10 border border-white/10 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && query.trim()) {
+              navigate(`/browse?q=${encodeURIComponent(query.trim())}`);
+              setSearchOpen(false);
+              setQuery("");
+            }
+            if (e.key === "Escape") {
+              setSearchOpen(false);
+              setQuery("");
+            }
+          }}
+        />
+
+        {/* Search Results Dropdown */}
+        {query.trim() && (
+          <div className="absolute top-11 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
+            {loading ? (
+              <div className="p-4 text-center text-gray-500 text-sm">Searching...</div>
+            ) : results.length === 0 ? (
+              <div className="p-4 text-center text-gray-500 text-sm">No results found</div>
+            ) : (
+              results.slice(0, 6).map((anime) => (
+                <button
+                  key={anime.mal_id}
+                  onClick={() => {
+                    navigate(`/anime/${anime.mal_id}`);
+                    setSearchOpen(false);
+                    setQuery("");
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
+                >
+                  <img
+                    src={anime.images.jpg.image_url}
+                    alt={anime.title}
+                    className="w-10 h-14 object-cover rounded flex-shrink-0"
                   />
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-medium truncate">
+                      {anime.title_english || anime.title}
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      {anime.type} • {anime.year || "??"} •{" "}
+                      {anime.score ? `★ ${anime.score}` : "N/A"}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
 
-                  {/* Search Results Dropdown */}
-                  {query.trim() && (
-                    <div className="absolute top-12 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
-                      {loading ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
-                          Searching...
-                        </div>
-                      ) : results.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
-                          No results found
-                        </div>
-                      ) : (
-                        results.slice(0, 6).map((anime) => (
-                          <button
-                            key={anime.mal_id}
-                            onClick={() => {
-                              navigate(`/anime/${anime.mal_id}`);
-                              setSearchOpen(false);
-                              setQuery("");
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
-                          >
-                            <img
-                              src={anime.images.jpg.image_url}
-                              alt={anime.title}
-                              className="w-10 h-14 object-cover rounded flex-shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <p className="text-white text-sm font-medium truncate">
-                                {anime.title_english || anime.title}
-                              </p>
-                              <p className="text-gray-500 text-xs mt-0.5">
-                                {anime.type} • {anime.year || "??"} •{" "}
-                                {anime.score ? `★ ${anime.score}` : "N/A"}
-                              </p>
-                            </div>
-                          </button>
-                        ))
-                      )}
-                      {results.length > 0 && (
-                        <button
-                          onClick={() => {
-                            navigate(
-                              `/browse?q=${encodeURIComponent(query.trim())}`
-                            );
-                            setSearchOpen(false);
-                            setQuery("");
-                          }}
-                          className="w-full px-4 py-3 text-center text-red-400 text-sm hover:bg-white/5 transition-colors"
-                        >
-                          See all results →
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            {results.length > 0 && (
+              <button
+                onClick={() => {
+                  navigate(`/browse?q=${encodeURIComponent(query.trim())}`);
+                  setSearchOpen(false);
+                  setQuery("");
+                }}
+                className="w-full px-4 py-3 text-center text-red-400 text-sm hover:bg-white/5 transition-colors"
+              >
+                See all results →
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    ) : (
+      // collapsed search button (normal flex item = perfectly aligned)
+      <button
+        onClick={() => setSearchOpen(true)}
+        className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+        aria-label="Open search"
+      >
+        <Search className="w-5 h-5" />
+      </button>
+    )}
+  </div>
 
             {/* ── Auth Section ── */}
             {/* Show nothing while clerk is figuring out auth state */}
