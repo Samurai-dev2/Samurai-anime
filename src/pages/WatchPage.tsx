@@ -277,17 +277,15 @@ export default function WatchPage() {
   const [playerMode, setPlayerMode] = useState<"clean" | "iframe">("clean");
 
   // ── Fetch ad-free stream from our API ──────────────────────
-  const {
-    streamUrl,
-    subtitles,
-    loading: streamLoading,
-    error:   streamError,
-  } = useStreamUrl(
-    tmdbId,
-    movie ? "movie" : "tv",
-    season,
-    episode,
-  );
+ const {
+  streamUrl,
+  subtitles,
+  loading: streamLoading,
+  error:   streamError,
+  intro,
+  outro,
+} = useStreamUrl(title, episode, lang);
+
 
   // Auto-fallback to iframe if scraper fails
   useEffect(() => {
