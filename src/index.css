@@ -117,3 +117,46 @@ select option {
 .page-enter {
   animation: fadeIn 0.3s ease forwards;
 }
+/* ── Plyr dark theme overrides ── */
+.plyr {
+  border-radius: 1rem;
+  overflow: hidden;
+  font-family: "Inter", sans-serif;
+}
+
+.plyr--video .plyr__controls {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: 16px;
+}
+
+.plyr__control--overlaid {
+  background: #dc2626 !important;
+}
+
+.plyr__control--overlaid:hover {
+  background: #ef4444 !important;
+}
+
+.plyr--full-ui input[type="range"] {
+  color: #dc2626;
+}
+
+.plyr__menu__container {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+}
+
+.plyr__menu__container .plyr__control {
+  color: #d4d4d8;
+}
+
+.plyr__menu__container .plyr__control:hover {
+  background: #27272a;
+  color: #fff;
+}
+
+.plyr__tooltip {
+  font-size: 12px;
+  border-radius: 6px;
+}
