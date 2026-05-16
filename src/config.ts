@@ -16,6 +16,10 @@
 //   Format: https://vidsrc.to/embed/tv/{imdb_id}/{season}/{episode}
 //
 // ============================================================
+// src/config.ts
+export const CONSUMET_API = 
+  import.meta.env.VITE_CONSUMET_API || "https://consumet-api-puce.vercel.app";
+// ^ replace later with YOUR self-hosted instance once Render is fixed
 
 export const TMDB_API_KEY = "453c6ffecf881ea95b9aff309a10178a";
 // You can also use a Bearer Token instead:
