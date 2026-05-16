@@ -1,8 +1,7 @@
 // api/reactions.ts
 import { Redis } from "@upstash/redis";
-import { verifyToken } from "@clerk/backend";
 
-// ── Connect to Upstash (reads env vars automatically) ──────
+// ── Connect to Upstash ─────────────────────────────────────
 const redis = new Redis({
   url:   process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
@@ -16,7 +15,7 @@ type MyReaction = Reaction | null;
 const keyCounts = (malId: number) => `anime:${malId}:reactions`;
 const keyUser   = (userId: string) => `user:${userId}:reactions`;
 
-// ── Pull user ID from Clerk JWT ────────────────────────────
+// ── Decode Clerk JWT (no top-level unused import) ──────────
 async function getUserId(req: any): Promise<string | null> {
   try {
     const auth  = req.headers?.authorization ?? "";
@@ -24,16 +23,15 @@ async function getUserId(req: any): Promise<string | null> {
 
     if (!token) return null;
 
-    // split the JWT into its 3 parts
     const parts = token.split(".");
     if (parts.length !== 3) return null;
 
-    // decode the payload and tell TypeScript its shape
+    // Decode payload with proper type
     const payload = JSON.parse(
       Buffer.from(parts[1], "base64url").toString("utf8")
-    ) as { sub?: string; [key: string]: unknown };
+    ) as { sub?: string };
 
-    // optionally verify with clerk if secret key is present
+    // Optional verification (only if secret key exists)
     if (process.env.CLERK_SECRET_KEY) {
       try {
         const { verifyToken } = await import("@clerk/backend");
@@ -42,12 +40,11 @@ async function getUserId(req: any): Promise<string | null> {
         });
         return (verified.payload?.sub as string) ?? null;
       } catch {
-        // verification failed, fall through to decoded payload
+        // verification failed — fall back to decoded payload
       }
     }
 
     return payload?.sub ?? null;
-
   } catch {
     return null;
   }
