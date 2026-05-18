@@ -1,23 +1,7 @@
 // src/hooks/useStreamUrl.ts
-// ─────────────────────────────────────────────────────────────
-// Fetches an ad-free HLS stream via Consumet's Zoro (HiAnime) provider.
-//
-// FLOW:
-//   1. Search Zoro by anime title       → results[]
-//   2. Find best title match            → animeId
-//   3. GET /anime/zoro/info?id=          → episodes[]
-//   4. Find the target episode          → episodeId
-//   5. GET /anime/zoro/watch?episodeId=  → sources[] + subtitles[]
-//   6. Pick best quality source         → streamUrl
-//   7. Wrap URL in /api/stream proxy    → browser-playable URL
-//
-// The proxy (api/stream.ts) adds the correct Referer/Origin headers
-// that the HiAnime CDN requires.
-// ─────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import { CONSUMET_API } from "../config";
 
-// ── Types ─────────────────────────────────────────────────────
 export interface Subtitle {
   lang:  string;
   label: string;
@@ -37,10 +21,6 @@ export type Lang = "sub" | "dub";
 
 // ── Helpers ───────────────────────────────────────────────────
 
-/**
- * Normalise a title for comparison:
- * lowercase, strip punctuation, collapse whitespace.
- */
 function normalise(s: string): string {
   return s
     .toLowerCase()
@@ -49,12 +29,9 @@ function normalise(s: string): string {
     .trim();
 }
 
-/**
- * Score a search result against our target title.
- * Higher = better match.
- */
 function scoreResult(result: any, target: string): number {
   const t = normalise(target);
+
   const candidates = [
     result.title,
     result.japaneseTitle,
@@ -64,21 +41,16 @@ function scoreResult(result: any, target: string): number {
     .filter(Boolean)
     .map((s: string) => normalise(s));
 
-  // Exact match wins outright
   if (candidates.some((c) => c === t)) return 1000;
 
-  // Starts-with bonus
   const startsWithBonus = candidates.some((c) => c.startsWith(t)) ? 50 : 0;
+  const containsBonus   = candidates.some((c) => c.includes(t))   ? 20 : 0;
 
-  // Contains bonus
-  const containsBonus = candidates.some((c) => c.includes(t)) ? 20 : 0;
-
-  // Word overlap score
   const targetWords = new Set(t.split(" "));
   const overlapScore = Math.max(
+    0,
     ...candidates.map((c) => {
-      const words  = c.split(" ");
-      const shared = words.filter((w) => targetWords.has(w)).length;
+      const shared = c.split(" ").filter((w) => targetWords.has(w)).length;
       return shared;
     }),
   );
@@ -86,26 +58,18 @@ function scoreResult(result: any, target: string): number {
   return overlapScore + startsWithBonus + containsBonus;
 }
 
-/**
- * Pick the best playable source from Consumet's sources array.
- * Priority: "auto" (adaptive HLS) > "default" > first entry
- */
 function pickBestSource(sources: any[]): any | null {
   if (!sources?.length) return null;
   return (
     sources.find((s) => s.quality === "auto")    ||
     sources.find((s) => s.quality === "default") ||
+    sources.find((s) => s.quality === "1080p")   ||
+    sources.find((s) => s.quality === "720p")    ||
     sources[0]
   );
 }
 
-/**
- * Wrap a raw CDN URL in our server-side proxy.
- * This is necessary because HiAnime CDN rejects requests
- * that don't carry the correct Referer header — which browsers
- * block us from setting on cross-origin requests.
- */
-function proxyUrl(rawUrl: string, referer: string): string {
+function buildProxiedUrl(rawUrl: string, referer: string): string {
   return (
     `/api/stream` +
     `?url=${encodeURIComponent(rawUrl)}` +
@@ -119,12 +83,12 @@ export function useStreamUrl(
   episode: number = 1,
   lang:    Lang   = "sub",
 ): StreamData {
-  const [streamUrl,  setStreamUrl]  = useState<string | null>(null);
-  const [subtitles,  setSubtitles]  = useState<Subtitle[]>([]);
-  const [intro,      setIntro]      = useState<{ start: number; end: number } | null>(null);
-  const [outro,      setOutro]      = useState<{ start: number; end: number } | null>(null);
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
+  const [intro,     setIntro]     = useState<{ start: number; end: number } | null>(null);
+  const [outro,     setOutro]     = useState<{ start: number; end: number } | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
 
   useEffect(() => {
     if (!title) {
@@ -134,7 +98,6 @@ export function useStreamUrl(
 
     let cancelled = false;
 
-    // Reset state on every new request
     setLoading(true);
     setError(null);
     setStreamUrl(null);
@@ -144,11 +107,16 @@ export function useStreamUrl(
 
     async function fetchStream() {
       try {
-        // ── Step 1: Search Zoro by title ──────────────────
-        const searchUrl = `${CONSUMET_API}/anime/zoro/${encodeURIComponent(title!)}`;
-        console.log("[useStreamUrl] Searching:", searchUrl);
+        // ── Step 1: Search Anikai ─────────────────────────
+        // Anikai uses ?anime= query param (not path param)
+        const searchUrl =
+          `${CONSUMET_API}/anime/anikai/search` +
+          `?anime=${encodeURIComponent(title!)}`;
+
+        console.log("[useStreamUrl] Searching Anikai:", searchUrl);
 
         const searchRes = await fetch(searchUrl);
+
         if (!searchRes.ok) {
           throw new Error(
             `Search failed: ${searchRes.status} ${searchRes.statusText}`
@@ -158,28 +126,34 @@ export function useStreamUrl(
         const searchData = await searchRes.json();
         if (cancelled) return;
 
+        console.log("[useStreamUrl] Search response:", searchData);
+
         const results: any[] = searchData?.results || [];
         if (!results.length) {
           throw new Error(`No results found for "${title}"`);
         }
 
-        // ── Step 2: Pick best matching result ─────────────
+        // ── Step 2: Pick best match ───────────────────────
         const scored = results
-          .map((r) => ({ result: r, score: scoreResult(r, title!) }))
+          .map((r) => ({ r, score: scoreResult(r, title!) }))
           .sort((a, b) => b.score - a.score);
 
-        const bestMatch = scored[0].result;
-        const animeId   = bestMatch.id;
+        const best = scored[0].r;
 
         console.log(
-          `[useStreamUrl] Best match: "${bestMatch.title}" (id: ${animeId}, score: ${scored[0].score})`
+          `[useStreamUrl] Best match: "${best.title}" ` +
+          `id="${best.id}" score=${scored[0].score}`
         );
 
-        // ── Step 3: Fetch episode list ────────────────────
-        const infoUrl = `${CONSUMET_API}/anime/zoro/info?id=${encodeURIComponent(animeId)}`;
+        // ── Step 3: Fetch anime info + episodes ───────────
+        const infoUrl =
+          `${CONSUMET_API}/anime/anikai/info` +
+          `?id=${encodeURIComponent(best.id)}`;
+
         console.log("[useStreamUrl] Fetching info:", infoUrl);
 
         const infoRes = await fetch(infoUrl);
+
         if (!infoRes.ok) {
           throw new Error(
             `Info fetch failed: ${infoRes.status} ${infoRes.statusText}`
@@ -189,36 +163,42 @@ export function useStreamUrl(
         const infoData = await infoRes.json();
         if (cancelled) return;
 
+        console.log("[useStreamUrl] Info response:", infoData);
+
         const episodes: any[] = infoData?.episodes || [];
         if (!episodes.length) {
-          throw new Error(`No episodes found for "${bestMatch.title}"`);
+          throw new Error(`No episodes found for "${best.title}"`);
         }
 
         // ── Step 4: Find target episode ───────────────────
-        // Try exact number match first, then fall back to array index
-        const targetEpisode =
-          episodes.find((e) => e.number === episode) ||
+        const targetEp =
+          episodes.find((e: any) => e.number === episode) ||
           episodes[episode - 1];
 
-        if (!targetEpisode) {
+        if (!targetEp) {
           throw new Error(
-            `Episode ${episode} not found (anime has ${episodes.length} episodes)`
+            `Episode ${episode} not found ` +
+            `(anime has ${episodes.length} episodes)`
           );
         }
 
         console.log(
-          `[useStreamUrl] Episode found: id="${targetEpisode.id}" number=${targetEpisode.number}`
+          `[useStreamUrl] Episode: id="${targetEp.id}" number=${targetEp.number}`
         );
 
-        // ── Step 5: Fetch stream sources ──────────────────
+        // ── Step 5: Fetch watch sources ───────────────────
+        // Anikai supports sub/dub via ?dubbing=true
+        const isDub = lang === "dub";
+
         const watchUrl =
-          `${CONSUMET_API}/anime/zoro/watch` +
-          `?episodeId=${encodeURIComponent(targetEpisode.id)}` +
-          `&category=${lang}`;
+          `${CONSUMET_API}/anime/anikai/watch` +
+          `?episodeId=${encodeURIComponent(targetEp.id)}` +
+          (isDub ? `&dubbing=true` : "");
 
         console.log("[useStreamUrl] Fetching watch:", watchUrl);
 
         const watchRes = await fetch(watchUrl);
+
         if (!watchRes.ok) {
           throw new Error(
             `Watch fetch failed: ${watchRes.status} ${watchRes.statusText}`
@@ -228,30 +208,32 @@ export function useStreamUrl(
         const watchData = await watchRes.json();
         if (cancelled) return;
 
+        console.log("[useStreamUrl] Watch response:", watchData);
+
         // ── Step 6: Pick best source ──────────────────────
         const sources: any[] = watchData?.sources || [];
-        const best = pickBestSource(sources);
+        const source = pickBestSource(sources);
 
-        if (!best?.url) {
+        if (!source?.url) {
           throw new Error(
-            `No playable source found for episode ${episode} (${lang})`
+            `No playable source for episode ${episode} (${lang})`
           );
         }
 
         console.log(
-          `[useStreamUrl] Source selected: quality="${best.quality}" url="${best.url.slice(0, 60)}…"`
+          `[useStreamUrl] Source: quality="${source.quality}" ` +
+          `url="${source.url.slice(0, 60)}…"`
         );
 
-        // ── Step 7: Wrap in proxy ─────────────────────────
+        // ── Step 7: Proxy the URL ─────────────────────────
         const referer =
           watchData?.headers?.Referer ||
           watchData?.headers?.referer ||
-          "https://hianime.to";
+          "https://anikai.to";
 
-        const proxied = proxyUrl(best.url, referer);
+        const proxied = buildProxiedUrl(source.url, referer);
 
-        // ── Process subtitles ─────────────────────────────
-        // Filter out Thumbnails VTT (used for video preview scrubbing, not captions)
+        // ── Step 8: Process subtitles ─────────────────────
         const subs: Subtitle[] = (watchData?.subtitles || [])
           .filter((s: any) => s?.url && s?.lang && s.lang !== "Thumbnails")
           .map((s: any) => ({
@@ -261,22 +243,20 @@ export function useStreamUrl(
           }));
 
         console.log(
-          `[useStreamUrl] Done. ${subs.length} subtitle track(s). ` +
-          `Intro: ${watchData?.intro ? "yes" : "no"} Outro: ${watchData?.outro ? "yes" : "no"}`
+          `[useStreamUrl] Done — ${subs.length} subtitle(s) found`
         );
 
         if (!cancelled) {
           setStreamUrl(proxied);
           setSubtitles(subs);
-          setIntro(watchData?.intro  || null);
-          setOutro(watchData?.outro  || null);
+          setIntro(watchData?.intro || null);
+          setOutro(watchData?.outro || null);
         }
 
       } catch (err: any) {
         if (!cancelled) {
-          const msg = err?.message || "Unknown error fetching stream";
-          console.error("[useStreamUrl] Error:", msg);
-          setError(msg);
+          console.error("[useStreamUrl] Failed:", err?.message);
+          setError(err?.message || "Unknown error fetching stream");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -284,11 +264,8 @@ export function useStreamUrl(
     }
 
     fetchStream();
+    return () => { cancelled = true; };
 
-    // Cleanup: ignore stale responses if title/episode/lang changes
-    return () => {
-      cancelled = true;
-    };
   }, [title, episode, lang]);
 
   return { streamUrl, subtitles, loading, error, intro, outro };
