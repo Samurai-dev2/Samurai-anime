@@ -1,4 +1,4 @@
-# Samurai Anime  🎌
+# Samurai Anime BETA  🎌
 
 Ok so after 20 million years I am happy to announce this project in <strong>BETA</strong> <br>
 This project uses the jikan api then uses a mapper to convert from a MAL id to a Tmdb so VIDsrc and other APIs actually work.<br>
