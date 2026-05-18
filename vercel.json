@@ -1,0 +1,24 @@
+{
+  "functions": {
+    "api/stream.ts": {
+      "maxDuration": 30
+    },
+    "api/reactions.ts": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/stream",
+      "destination": "/api/stream"
+    },
+    {
+      "source": "/api/reactions",
+      "destination": "/api/reactions"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
