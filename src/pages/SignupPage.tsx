@@ -1,16 +1,16 @@
 // src/pages/SignupPage.tsx
-import { useSignUp, useUser } from '@clerk/clerk-react';
+import { useSignUp } from '@clerk/clerk-react';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Camera, X, Upload } from 'lucide-react';
 
-// ─── Password strength calculator ─────────────────────────────────────────
+// ── Password strength ──────────────────────────────────────────
 const getStrength = (p: string) => {
   if (!p) return null;
   const checks = {
-    length: p.length >= 8,
-    upper: /[A-Z]/.test(p),
-    number: /[0-9]/.test(p),
+    length:  p.length >= 8,
+    upper:   /[A-Z]/.test(p),
+    number:  /[0-9]/.test(p),
     special: /[^A-Za-z0-9]/.test(p),
   };
   const score = Object.values(checks).filter(Boolean).length;
@@ -28,34 +28,40 @@ type Step = 'form' | 'verify' | 'avatar';
 
 export default function SignupPage() {
   const navigate = useNavigate();
+
+  // ── KEY FIX: don't destructure user from useUser() here ──
+  // Instead we keep a ref to the createdUserId from signUp
+  // and call user methods directly on the signUp object
   const { isLoaded, signUp, setActive } = useSignUp();
-  const { user } = useUser();
 
-  const [step, setStep]                         = useState<Step>('form');
-  const [username, setUsername]                 = useState('');
-  const [email, setEmail]                       = useState('');
-  const [password, setPassword]                 = useState('');
-  const [confirmPassword, setConfirmPassword]   = useState('');
+  const [step,             setStep]             = useState<Step>('form');
+  const [username,         setUsername]         = useState('');
+  const [email,            setEmail]            = useState('');
+  const [password,         setPassword]         = useState('');
+  const [confirmPassword,  setConfirmPassword]  = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [showPassword, setShowPassword]         = useState(false);
-  const [submitting, setSubmitting]             = useState(false);
-  const [error, setError]                       = useState('');
-  const [fieldErrors, setFieldErrors]           = useState<Record<string, string>>({});
-  const [mounted, setMounted]                   = useState(false);
+  const [showPassword,     setShowPassword]     = useState(false);
+  const [submitting,       setSubmitting]       = useState(false);
+  const [error,            setError]            = useState('');
+  const [fieldErrors,      setFieldErrors]      = useState<Record<string, string>>({});
+  const [mounted,          setMounted]          = useState(false);
 
-  // ── Avatar state ──
-  const [avatarFile, setAvatarFile]             = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview]       = useState<string | null>(null);
-  const [avatarUploading, setAvatarUploading]   = useState(false);
-  const [avatarError, setAvatarError]           = useState('');
-  const [dragOver, setDragOver]                 = useState(false);
-  const fileInputRef                            = useRef<HTMLInputElement>(null);
+  // Avatar state
+  const [avatarFile,      setAvatarFile]      = useState<File | null>(null);
+  const [avatarPreview,   setAvatarPreview]   = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError,     setAvatarError]     = useState('');
+  const [dragOver,        setDragOver]        = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── KEY FIX: store the active session id so we can use it ──
+  // to get the user object without waiting for useUser() to sync
+  const createdSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setTimeout(() => setMounted(true), 50);
   }, []);
 
-  // Cleanup preview URL on unmount
   useEffect(() => {
     return () => {
       if (avatarPreview) URL.revokeObjectURL(avatarPreview);
@@ -66,20 +72,19 @@ export default function SignupPage() {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!username.trim())             errs.username = 'Username is required';
-    else if (username.length < 3)     errs.username = 'At least 3 characters';
-    if (!email.trim())                errs.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) errs.email = 'Enter a valid email';
-    if (!password)                    errs.password = 'Password is required';
-    else if (password.length < 8)     errs.password = 'At least 8 characters';
-    if (password !== confirmPassword) errs.confirmPassword = "Passwords don't match";
+    if (!username.trim())                  errs.username        = 'Username is required';
+    else if (username.length < 3)          errs.username        = 'At least 3 characters';
+    if (!email.trim())                     errs.email           = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email)) errs.email           = 'Enter a valid email';
+    if (!password)                         errs.password        = 'Password is required';
+    else if (password.length < 8)          errs.password        = 'At least 8 characters';
+    if (password !== confirmPassword)      errs.confirmPassword = "Passwords don't match";
     return errs;
   };
 
-  // ─── Avatar file handler ───────────────────────────────────────────────
+  // ── Avatar file handling ───────────────────────────────────
   const handleAvatarFile = (file: File) => {
     setAvatarError('');
-
     if (!file.type.startsWith('image/')) {
       setAvatarError('Please select an image file');
       return;
@@ -88,10 +93,7 @@ export default function SignupPage() {
       setAvatarError('Image must be under 10MB');
       return;
     }
-
-    // Revoke old preview
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
   };
@@ -99,7 +101,6 @@ export default function SignupPage() {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleAvatarFile(file);
-    // Reset input so same file can be reselected
     e.target.value = '';
   };
 
@@ -117,11 +118,11 @@ export default function SignupPage() {
     setAvatarError('');
   };
 
-  // ─── Step 1: Create account ────────────────────────────────────────────
+  // ── Step 1: Create account ─────────────────────────────────
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoaded || !signUp) {
-      setError('Auth not ready yet, please wait');
+      setError('Auth not ready yet, please wait a moment');
       return;
     }
 
@@ -133,14 +134,8 @@ export default function SignupPage() {
     setSubmitting(true);
 
     try {
-      const result = await signUp.create({ username, emailAddress: email, password });
-
-      if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
-        setStep('avatar');
-        return;
-      }
-
+      await signUp.create({ username, emailAddress: email, password });
+      // Always send verification email — Clerk requires it
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       setStep('verify');
     } catch (err: any) {
@@ -151,7 +146,7 @@ export default function SignupPage() {
     }
   };
 
-  // ─── Step 2: Verify email ──────────────────────────────────────────────
+  // ── Step 2: Verify email ───────────────────────────────────
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoaded || !signUp) return;
@@ -160,11 +155,15 @@ export default function SignupPage() {
     setSubmitting(true);
 
     try {
-      const result = await signUp.attemptEmailAddressVerification({ code: verificationCode });
+      const result = await signUp.attemptEmailAddressVerification({
+        code: verificationCode,
+      });
 
       if (result.status === 'complete') {
+        // Store session id in ref — we'll use it after avatar upload
+        createdSessionIdRef.current = result.createdSessionId;
+        // Activate the session now so user is logged in
         await setActive({ session: result.createdSessionId });
-        // Move to avatar step — user object now available
         setStep('avatar');
       } else {
         setError('Verification incomplete. Please try again.');
@@ -177,10 +176,10 @@ export default function SignupPage() {
     }
   };
 
-  // ─── Step 3: Upload avatar then go home ───────────────────────────────
+  // ── Step 3: Upload avatar ──────────────────────────────────
   const handleAvatarUpload = async () => {
-    if (!user || !avatarFile) {
-      // No avatar chosen — skip to home
+    // Skip avatar — just go home
+    if (!avatarFile) {
       navigate('/');
       return;
     }
@@ -189,12 +188,44 @@ export default function SignupPage() {
     setAvatarUploading(true);
 
     try {
-      // This is the Clerk method to set a profile image
-      await user.setProfileImage({ file: avatarFile });
-      navigate('/');
+      // ── KEY FIX: poll for user to be ready instead of
+      // relying on useUser() which may not have synced yet ──
+      let attempts = 0;
+      const maxAttempts = 20; // 10 seconds max
+
+      const tryUpload = async (): Promise<void> => {
+        attempts++;
+
+        // Access user through Clerk's global client
+        const clerkUser = (window as any).Clerk?.user;
+
+        if (clerkUser) {
+          await clerkUser.setProfileImage({ file: avatarFile });
+          navigate('/');
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          // User object never appeared — just go home
+          console.warn('User object not available after polling, skipping avatar upload');
+          navigate('/');
+          return;
+        }
+
+        // Wait 500ms and retry
+        await new Promise(r => setTimeout(r, 500));
+        return tryUpload();
+      };
+
+      await tryUpload();
+
     } catch (err: any) {
       const clerkError = err?.errors?.[0];
-      setAvatarError(clerkError?.longMessage || clerkError?.message || 'Upload failed');
+      setAvatarError(
+        clerkError?.longMessage ||
+        clerkError?.message     ||
+        'Upload failed — you can add a photo from your profile later'
+      );
     } finally {
       setAvatarUploading(false);
     }
@@ -210,18 +241,17 @@ export default function SignupPage() {
     }
   `;
 
-  // ── Step indicator ─────────────────────────────────────────────────────
   const steps = [
-    { id: 'form',   label: 'Account'  },
-    { id: 'verify', label: 'Verify'   },
-    { id: 'avatar', label: 'Avatar'   },
+    { id: 'form',   label: 'Account' },
+    { id: 'verify', label: 'Verify'  },
+    { id: 'avatar', label: 'Avatar'  },
   ];
   const currentStepIndex = steps.findIndex(s => s.id === step);
 
   return (
     <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4 py-10 relative overflow-hidden">
 
-      {/* Background glows */}
+      {/* Background */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-900/20 rounded-full blur-[120px]" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-red-800/10 rounded-full blur-[100px]" />
@@ -229,8 +259,10 @@ export default function SignupPage() {
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-                             linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+            `,
             backgroundSize: '60px 60px',
           }}
         />
@@ -258,36 +290,31 @@ export default function SignupPage() {
           </Link>
         </div>
 
-        {/* ── Step indicator ── */}
+        {/* Step indicator */}
         <div className="flex items-center justify-center gap-2 mb-8">
           {steps.map((s, i) => (
             <div key={s.id} className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-1">
-                <div
-                  className={`
-                    w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
-                    transition-all duration-300
-                    ${i < currentStepIndex
-                      ? 'bg-red-600 text-white'
-                      : i === currentStepIndex
-                      ? 'bg-red-600 text-white ring-4 ring-red-500/20'
-                      : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
-                    }
-                  `}
-                >
+                <div className={`
+                  w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
+                  transition-all duration-300
+                  ${i < currentStepIndex
+                    ? 'bg-red-600 text-white'
+                    : i === currentStepIndex
+                    ? 'bg-red-600 text-white ring-4 ring-red-500/20'
+                    : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                  }
+                `}>
                   {i < currentStepIndex ? (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                  ) : (
-                    i + 1
-                  )}
+                  ) : i + 1}
                 </div>
                 <span className={`text-xs transition-colors ${i === currentStepIndex ? 'text-red-400' : 'text-zinc-600'}`}>
                   {s.label}
                 </span>
               </div>
-              {/* Connector line */}
               {i < steps.length - 1 && (
                 <div className={`w-12 h-px mb-5 transition-colors duration-300 ${i < currentStepIndex ? 'bg-red-600' : 'bg-zinc-700'}`} />
               )}
@@ -300,9 +327,7 @@ export default function SignupPage() {
           <div className="absolute -inset-[1px] bg-gradient-to-b from-red-500/30 via-zinc-800/50 to-zinc-900/30 rounded-2xl blur-sm" />
           <div className="relative bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-8 shadow-2xl">
 
-            {/* ════════════════════════════════
-                STEP 1 — ACCOUNT FORM
-            ════════════════════════════════ */}
+            {/* ══ STEP 1: FORM ══ */}
             {step === 'form' && (
               <>
                 <div className="mb-8">
@@ -336,7 +361,9 @@ export default function SignupPage() {
                         className={inputClass('username')}
                       />
                     </div>
-                    {fieldErrors.username && <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.username}</p>}
+                    {fieldErrors.username && (
+                      <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.username}</p>
+                    )}
                   </div>
 
                   {/* Email */}
@@ -356,7 +383,9 @@ export default function SignupPage() {
                         className={inputClass('email')}
                       />
                     </div>
-                    {fieldErrors.email && <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.email}</p>}
+                    {fieldErrors.email && (
+                      <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.email}</p>
+                    )}
                   </div>
 
                   {/* Password */}
@@ -375,11 +404,20 @@ export default function SignupPage() {
                         placeholder="••••••••"
                         className={`${inputClass('password')} pr-12`}
                       />
-                      <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(p => !p)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
                         {showPassword ? (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
                         ) : (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
                         )}
                       </button>
                     </div>
@@ -388,22 +426,41 @@ export default function SignupPage() {
                     {strength && (
                       <div className="space-y-1.5 mt-2">
                         <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all duration-500 ${strength.color}`} style={{ width: strength.width }} />
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${strength.color}`}
+                            style={{ width: strength.width }}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <p className={`text-xs font-medium ${strength.textColor}`}>{strength.label}</p>
                           <div className="flex items-center gap-2">
-                            {[{ key: 'length', label: '8+' }, { key: 'upper', label: 'A-Z' }, { key: 'number', label: '0-9' }, { key: 'special', label: '!@#' }].map(({ key, label }) => (
-                              <span key={key} className={`text-xs px-1.5 py-0.5 rounded font-mono transition-colors ${strength!.checks[key as keyof typeof strength.checks] ? 'bg-green-500/20 text-green-400' : 'bg-zinc-800 text-zinc-600'}`}>{label}</span>
+                            {[
+                              { key: 'length',  label: '8+' },
+                              { key: 'upper',   label: 'A-Z' },
+                              { key: 'number',  label: '0-9' },
+                              { key: 'special', label: '!@#' },
+                            ].map(({ key, label }) => (
+                              <span
+                                key={key}
+                                className={`text-xs px-1.5 py-0.5 rounded font-mono transition-colors ${
+                                  strength!.checks[key as keyof typeof strength.checks]
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : 'bg-zinc-800 text-zinc-600'
+                                }`}
+                              >
+                                {label}
+                              </span>
                             ))}
                           </div>
                         </div>
                       </div>
                     )}
-                    {fieldErrors.password && <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.password}</p>}
+                    {fieldErrors.password && (
+                      <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.password}</p>
+                    )}
                   </div>
 
-                  {/* Confirm Password */}
+                  {/* Confirm password */}
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-zinc-300">Confirm Password</label>
                     <div className="relative group">
@@ -422,21 +479,26 @@ export default function SignupPage() {
                       {confirmPassword && (
                         <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
                           {password === confirmPassword ? (
-                            <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
                           ) : (
-                            <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                           )}
                         </div>
                       )}
                     </div>
-                    {fieldErrors.confirmPassword && <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.confirmPassword}</p>}
+                    {fieldErrors.confirmPassword && (
+                      <p className="text-xs text-red-400 flex items-center gap-1"><span>•</span>{fieldErrors.confirmPassword}</p>
+                    )}
                   </div>
 
-                  {/* Submit */}
                   <button
                     type="submit"
                     disabled={submitting || !isLoaded}
-                    className="relative w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-red-900/30 hover:shadow-red-900/50 hover:-translate-y-0.5 active:translate-y-0 overflow-hidden group mt-2"
+                    className="relative w-full py-3.5 rounded-xl font-semibold text-white bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-red-900/30 hover:-translate-y-0.5 active:translate-y-0 overflow-hidden group mt-2"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                     {submitting ? (
@@ -462,9 +524,7 @@ export default function SignupPage() {
               </>
             )}
 
-            {/* ════════════════════════════════
-                STEP 2 — EMAIL VERIFY
-            ════════════════════════════════ */}
+            {/* ══ STEP 2: VERIFY ══ */}
             {step === 'verify' && (
               <>
                 <div className="mb-8 text-center">
@@ -489,11 +549,16 @@ export default function SignupPage() {
 
                 <form onSubmit={handleVerify} className="space-y-5">
                   <div className="space-y-1.5">
-                    <label className="block text-sm font-medium text-zinc-300 text-center">Verification Code</label>
+                    <label className="block text-sm font-medium text-zinc-300 text-center">
+                      Verification Code
+                    </label>
                     <input
                       type="text"
                       value={verificationCode}
-                      onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={e => {
+                        setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        setError('');
+                      }}
                       placeholder="000000"
                       maxLength={6}
                       autoFocus
@@ -526,9 +591,7 @@ export default function SignupPage() {
               </>
             )}
 
-            {/* ════════════════════════════════
-                STEP 3 — AVATAR UPLOAD
-            ════════════════════════════════ */}
+            {/* ══ STEP 3: AVATAR ══ */}
             {step === 'avatar' && (
               <>
                 <div className="mb-8 text-center">
@@ -538,18 +601,13 @@ export default function SignupPage() {
                   </p>
                 </div>
 
-                {/* Avatar preview + drop zone */}
                 <div className="flex flex-col items-center gap-5 mb-6">
 
-                  {/* Preview circle */}
-                  <div className="relative group">
+                  {/* Preview */}
+                  <div className="relative">
                     <div className="w-32 h-32 rounded-2xl overflow-hidden border-2 border-zinc-700 bg-zinc-800 flex items-center justify-center">
                       {avatarPreview ? (
-                        <img
-                          src={avatarPreview}
-                          alt="Avatar preview"
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={avatarPreview} alt="Avatar preview" className="w-full h-full object-cover" />
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-zinc-600">
                           <Camera className="w-10 h-10" />
@@ -557,8 +615,6 @@ export default function SignupPage() {
                         </div>
                       )}
                     </div>
-
-                    {/* Remove button */}
                     {avatarPreview && (
                       <button
                         onClick={removeAvatar}
@@ -569,10 +625,7 @@ export default function SignupPage() {
                     )}
                   </div>
 
-                  {/* Username display */}
-                  <p className="text-white font-semibold text-lg">
-                    {username}
-                  </p>
+                  <p className="text-white font-semibold text-lg">{username}</p>
 
                   {/* Drop zone */}
                   <div
@@ -593,12 +646,9 @@ export default function SignupPage() {
                     <p className="text-zinc-400 text-sm font-medium">
                       {avatarFile ? avatarFile.name : 'Click or drag & drop an image'}
                     </p>
-                    <p className="text-zinc-600 text-xs mt-1">
-                      PNG, JPG, GIF, WEBP — max 10MB
-                    </p>
+                    <p className="text-zinc-600 text-xs mt-1">PNG, JPG, GIF, WEBP — max 10MB</p>
                   </div>
 
-                  {/* Hidden file input */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -615,7 +665,6 @@ export default function SignupPage() {
                   </div>
                 )}
 
-                {/* Actions */}
                 <div className="space-y-3">
                   <button
                     onClick={handleAvatarUpload}
@@ -653,7 +702,7 @@ export default function SignupPage() {
         </div>
 
         <p className="text-center text-zinc-700 text-xs mt-6">
-          By continuing, you agree to our Terms of Service
+          By continuing, you agree to gate keep this site
         </p>
       </div>
     </div>
