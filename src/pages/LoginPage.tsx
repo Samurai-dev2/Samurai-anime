@@ -1,32 +1,29 @@
 // src/pages/LoginPage.tsx
-import { useSignIn, useSignUp } from '@clerk/clerk-react';
+import { useSignIn } from '@clerk/clerk-react';
 import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 
-interface LoginPageProps {
-  onSuccess: () => void;
-  onGoToSignup: () => void;
-}
-
-export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
+export default function LoginPage() {
+  const navigate = useNavigate();
   const { signIn, isLoaded: signInLoaded, setActive } = useSignIn();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [mounted, setMounted] = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [error, setError]               = useState('');
+  const [fieldErrors, setFieldErrors]   = useState<Record<string, string>>({});
+  const [mounted, setMounted]           = useState(false);
 
   useEffect(() => {
-    // Trigger entrance animation
     setTimeout(() => setMounted(true), 50);
   }, []);
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!email.trim()) errs.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) errs.email = 'Enter a valid email';
-    if (!password) errs.password = 'Password is required';
+    if (!email.trim())                    errs.email    = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email)) errs.email    = 'Enter a valid email';
+    if (!password)                        errs.password = 'Password is required';
     return errs;
   };
 
@@ -52,11 +49,15 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
-        onSuccess();
+        navigate('/');
       }
     } catch (err: any) {
-      const msg = err.errors?.[0]?.message || 'Login failed. Please try again.';
-      setError(msg);
+      const clerkError = err?.errors?.[0];
+      setError(
+        clerkError?.longMessage ||
+        clerkError?.message     ||
+        'Login failed. Please try again.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -65,56 +66,37 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
   return (
     <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4 relative overflow-hidden">
 
-      {/* Animated background layers */}
-      <div className="absolute inset-0">
-        {/* Deep red radial glow */}
+      {/* ── Background ── */}
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-900/20 rounded-full blur-[120px]" />
-        {/* Corner accents */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-red-800/10 rounded-full blur-[100px]" />
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-orange-900/10 rounded-full blur-[100px]" />
-
-        {/* Animated floating particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-red-500/30 rounded-full animate-pulse"
-              style={{
-                left: `${15 + i * 15}%`,
-                top: `${20 + (i % 3) * 25}%`,
-                animationDelay: `${i * 0.7}s`,
-                animationDuration: `${2 + i * 0.5}s`,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Subtle grid overlay */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-                             linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+            `,
             backgroundSize: '60px 60px',
           }}
         />
       </div>
 
-      {/* Main card */}
+      {/* ── Card ── */}
       <div
         className={`
           relative w-full max-w-md transition-all duration-700 ease-out
           ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
         `}
       >
-        {/* Logo section */}
+        {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-3 mb-4">
+          <Link to="/" className="inline-flex items-center gap-3">
             <div className="relative">
               <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/50">
                 <span className="text-2xl">⚔️</span>
               </div>
-              {/* Glow ring around icon */}
               <div className="absolute inset-0 rounded-xl bg-red-500/20 blur-md -z-10 scale-125" />
             </div>
             <div className="text-left">
@@ -125,22 +107,18 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
                 Anime Universe
               </p>
             </div>
-          </div>
+          </Link>
         </div>
 
-        {/* Card */}
         <div className="relative">
-          {/* Card glow border effect */}
+          {/* Glow border */}
           <div className="absolute -inset-[1px] bg-gradient-to-b from-red-500/30 via-zinc-800/50 to-zinc-900/30 rounded-2xl blur-sm" />
 
           <div className="relative bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-8 shadow-2xl">
 
-            {/* Card header */}
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-white">Welcome back</h2>
-              <p className="text-zinc-500 text-sm mt-1">
-                Sign in to continue your journey
-              </p>
+              <p className="text-zinc-500 text-sm mt-1">Sign in to continue your journey</p>
             </div>
 
             {/* Error banner */}
@@ -152,7 +130,8 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
             )}
 
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
-              {/* Email field */}
+
+              {/* Email */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-zinc-300">
                   Email address
@@ -169,6 +148,7 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
                     onChange={e => {
                       setEmail(e.target.value);
                       setFieldErrors(p => ({ ...p, email: '' }));
+                      setError('');
                     }}
                     placeholder="you@example.com"
                     className={`
@@ -183,20 +163,25 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
                   />
                 </div>
                 {fieldErrors.email && (
-                  <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                  <p className="text-xs text-red-400 flex items-center gap-1">
                     <span>•</span> {fieldErrors.email}
                   </p>
                 )}
               </div>
 
-              {/* Password field */}
+              {/* Password */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-medium text-zinc-300">
                     Password
                   </label>
+                  {/* 
+                    Forgot password — Clerk has a built-in flow.
+                    You can wire this up later with signIn.create({ strategy: 'reset_password_email_code', ... })
+                  */}
                   <button
                     type="button"
+                    onClick={() => setError('Password reset: coming soon')}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors"
                   >
                     Forgot password?
@@ -214,6 +199,7 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
                     onChange={e => {
                       setPassword(e.target.value);
                       setFieldErrors(p => ({ ...p, password: '' }));
+                      setError('');
                     }}
                     placeholder="••••••••"
                     className={`
@@ -244,28 +230,26 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
                   </button>
                 </div>
                 {fieldErrors.password && (
-                  <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                  <p className="text-xs text-red-400 flex items-center gap-1">
                     <span>•</span> {fieldErrors.password}
                   </p>
                 )}
               </div>
 
-              {/* Submit button */}
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={submitting || !signInLoaded}
                 className="
-                  relative w-full py-3.5 rounded-xl font-semibold text-white
+                  relative w-full py-3.5 rounded-xl font-semibold text-white mt-2
                   bg-gradient-to-r from-red-700 to-red-500
                   hover:from-red-600 hover:to-red-400
                   disabled:opacity-50 disabled:cursor-not-allowed
                   transition-all duration-200 shadow-lg shadow-red-900/30
                   hover:shadow-red-900/50 hover:-translate-y-0.5
                   active:translate-y-0 overflow-hidden group
-                  mt-2
                 "
               >
-                {/* Shimmer effect on hover */}
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
                 {submitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -288,17 +272,16 @@ export default function LoginPage({ onSuccess, onGoToSignup }: LoginPageProps) {
             {/* Switch to signup */}
             <p className="text-center text-zinc-500 text-sm">
               New to Samurai?{' '}
-              <button
-                onClick={onGoToSignup}
+              <Link
+                to="/signup"
                 className="text-red-400 hover:text-red-300 font-semibold transition-colors hover:underline underline-offset-2"
               >
                 Create an account →
-              </button>
+              </Link>
             </p>
           </div>
         </div>
 
-        {/* Bottom text */}
         <p className="text-center text-zinc-700 text-xs mt-6">
           By continuing, you agree to our Terms of Service
         </p>
