@@ -7,13 +7,13 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { signIn, isLoaded: signInLoaded, setActive } = useSignIn();
 
-  const [email, setEmail]               = useState('');
-  const [password, setPassword]         = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting]     = useState(false);
-  const [error, setError]               = useState('');
-  const [fieldErrors, setFieldErrors]   = useState<Record<string, string>>({});
-  const [mounted, setMounted]           = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setTimeout(() => setMounted(true), 50);
@@ -21,15 +21,18 @@ export default function LoginPage() {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!email.trim())                    errs.email    = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) errs.email    = 'Enter a valid email';
-    if (!password)                        errs.password = 'Password is required';
+    if (!email.trim()) errs.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(email)) errs.email = 'Enter a valid email';
+    if (!password) errs.password = 'Password is required';
     return errs;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signInLoaded) return;
+    if (!signInLoaded) {
+      setError('Auth is still loading — wait a moment and try again');
+      return;
+    }
 
     const errs = validate();
     if (Object.keys(errs).length) {
@@ -42,22 +45,35 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
+      console.log('[Login] Attempting sign in with:', email);
+      
       const result = await signIn.create({
         identifier: email,
         password,
       });
 
+      console.log('[Login] Sign in result:', result);
+
+      // Handle different statuses
       if (result.status === 'complete') {
+        console.log('[Login] Status complete — activating session');
         await setActive({ session: result.createdSessionId });
+        console.log('[Login] Session active — navigating home');
         navigate('/');
+      } else if (result.status === 'needs_first_factor' || result.status === 'needs_verification') {
+        // Email verification required
+        console.log('[Login] Needs verification — preparing email code');
+        await signIn.prepareFirstFactor({ strategy: 'email_code', emailAddressId: result.supportedFirstFactors?.find((f: any) => f.strategy === 'email_code')?.emailAddressId });
+        setError('Check your email for a verification code');
+      } else {
+        console.warn('[Login] Unexpected status:', result.status);
+        setError(`Unexpected sign-in status: ${result.status}`);
       }
     } catch (err: any) {
+      console.error('[Login] Error:', err);
       const clerkError = err?.errors?.[0];
-      setError(
-        clerkError?.longMessage ||
-        clerkError?.message     ||
-        'Login failed. Please try again.'
-      );
+      const message = clerkError?.longMessage || clerkError?.message || 'Login failed';
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -66,7 +82,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4 relative overflow-hidden">
 
-      {/* ── Background ── */}
+      {/* Background */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-900/20 rounded-full blur-[120px]" />
         <div className="absolute top-0 left-0 w-96 h-96 bg-red-800/10 rounded-full blur-[100px]" />
@@ -83,7 +99,6 @@ export default function LoginPage() {
         />
       </div>
 
-      {/* ── Card ── */}
       <div
         className={`
           relative w-full max-w-md transition-all duration-700 ease-out
@@ -100,12 +115,8 @@ export default function LoginPage() {
               <div className="absolute inset-0 rounded-xl bg-red-500/20 blur-md -z-10 scale-125" />
             </div>
             <div className="text-left">
-              <h1 className="text-3xl font-black text-white tracking-wider leading-none">
-                SAMURAI
-              </h1>
-              <p className="text-red-400 text-xs font-medium tracking-widest uppercase">
-                Anime Universe
-              </p>
+              <h1 className="text-3xl font-black text-white tracking-wider leading-none">SAMURAI</h1>
+              <p className="text-red-400 text-xs font-medium tracking-widest uppercase">Anime Universe</p>
             </div>
           </Link>
         </div>
@@ -175,13 +186,9 @@ export default function LoginPage() {
                   <label className="block text-sm font-medium text-zinc-300">
                     Password
                   </label>
-                  {/* 
-                    Forgot password — Clerk has a built-in flow.
-                    You can wire this up later with signIn.create({ strategy: 'reset_password_email_code', ... })
-                  */}
                   <button
                     type="button"
-                    onClick={() => setError('Password reset: coming soon')}
+                    onClick={() => setError('Password reset: coming soon — contact support')}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors"
                   >
                     Forgot password?
